@@ -1,0 +1,67 @@
+@import "styles/variables.scss";
+
+.container {
+  width: fit-content;
+  display: flex;
+  gap: 10px;
+  padding: 6px;
+  border-radius: 5px;
+  background-color: $white-2;
+  position: relative;
+  z-index: 10;
+  overflow: hidden;
+
+  .cover {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%) scale(0.88);
+    background-color: $primary;
+    opacity: 0;
+    transition: 200ms;
+    height: calc(100% - 2px);
+    border-radius: inherit;
+    z-index: -1;
+  }
+
+  .activeCover {
+    opacity: 1;
+  }
+
+  .item {
+    flex: 1;
+    padding: 5px;
+    border-radius: 5px;
+    transition: 200ms;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    svg {
+      height: 18px;
+      width: 18px;
+      color: $black;
+      transition: 200ms;
+    }
+
+    .text {
+      font-size: 16px;
+      font-weight: 500;
+      transform: 200ms;
+      color: $black;
+      text-align: center;
+      white-space: nowrap;
+    }
+  }
+
+  .activeItem {
+    svg {
+      stroke: $white;
+      color: $white;
+    }
+
+    .text {
+      color: $white;
+    }
+  }
+}

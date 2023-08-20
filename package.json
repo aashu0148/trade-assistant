@@ -6,9 +6,17 @@
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
+    "chartjs-plugin-annotation": "^3.0.1",
+    "chartjs-plugin-crosshair": "^1.2.0",
+    "indicatorts": "^1.0.14",
     "react": "^18.2.0",
+    "react-chartjs-2": "^5.2.0",
     "react-dom": "^18.2.0",
+    "react-feather": "^2.0.10",
+    "react-hot-toast": "^2.4.1",
+    "react-router-dom": "^6.11.1",
     "react-scripts": "5.0.1",
+    "sass": "^1.62.1",
     "web-vitals": "^2.1.4"
   },
   "scripts": {

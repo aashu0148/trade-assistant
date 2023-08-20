@@ -1,0 +1,167 @@
+@import "styles/variables.scss";
+
+.button {
+  width: fit-content;
+  display: flex;
+  gap: 5px;
+  justify-content: center;
+  align-items: center;
+  padding: 10px 20px;
+  border: none;
+  outline: none;
+  font-size: 16px;
+  font-weight: 500;
+  border-radius: 5px;
+  background-color: $primary;
+  color: $white;
+  cursor: pointer;
+  margin: 1px;
+  transition: 200ms;
+  white-space: nowrap;
+  border: 1px solid transparent;
+
+  &:hover {
+    background-position-x: 55%;
+
+    .icon {
+      fill: $white;
+    }
+  }
+
+  &:active {
+    // transform: translateY(2px);
+    transform: scale(0.95);
+  }
+
+  & > div {
+    margin: 0;
+  }
+
+  img {
+    height: 20px;
+    width: 20px;
+    margin-left: 5px;
+  }
+
+  .icon {
+    height: 18px;
+    width: 18px;
+    margin-left: 8px;
+    fill: $white;
+  }
+}
+
+.button-outline {
+  background: $white;
+  color: $primary;
+  border: 2px solid $primary;
+  font-weight: 600;
+
+  &:hover {
+    color: $primary;
+
+    .icon {
+      fill: $primary;
+    }
+  }
+
+  .icon {
+    fill: $primary;
+    stroke-width: 2px;
+  }
+}
+
+.button-cancel {
+  border: 1px solid transparent;
+  background: transparent;
+  color: $black;
+
+  &:hover {
+    background-color: $white-1;
+    border: 1px solid $white-2;
+
+    .icon {
+      fill: $gray;
+    }
+  }
+
+  .icon {
+    fill: $black;
+  }
+}
+
+.button-disabled {
+  background: $white-2;
+  width: fit-content;
+  color: $black;
+  border-color: $gray !important;
+  cursor: not-allowed;
+
+  svg {
+    color: $primary;
+  }
+
+  &:hover {
+    background: $white-2;
+    color: $black;
+
+    svg {
+      color: $primary;
+    }
+
+    .icon {
+      fill: $primary;
+    }
+  }
+
+  &:active {
+    transform: translateY(0) !important;
+    transform: scale(1) !important;
+  }
+
+  .icon {
+    fill: $primary;
+  }
+}
+
+.outline-button-disabled {
+  color: $primary;
+  border-color: $primary;
+  background: $white-2;
+
+  &:hover {
+    color: $primary;
+    background: $white-2;
+  }
+}
+
+.buttonDelete {
+  width: fit-content;
+  border: 1px solid $red;
+  color: $white;
+  background: $red;
+
+  &:hover {
+    background: $white;
+    color: $red;
+  }
+}
+
+.buttonDelete.button-outline {
+  background-color: $white;
+  color: $red;
+}
+
+@media (max-width: $breakpoint-md) {
+  .button {
+    height: 33px;
+    font-size: 0.875rem;
+  }
+}
+
+.styled_button {
+  padding: 10px 15px;
+  background-color: transparent;
+  border: 2px solid $primary;
+  border-radius: 6px;
+}

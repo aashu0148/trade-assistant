@@ -1,0 +1,170 @@
+@import "styles/variables.scss";
+
+.container {
+  position: fixed;
+  left: 0;
+  top: 0;
+  padding: 40px;
+  padding-bottom: 100px;
+  width: 100%;
+  min-height: 100vh;
+  height: 100%;
+  overflow: auto;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  z-index: 200;
+
+  .inner {
+    margin: auto;
+    position: relative;
+    height: fit-content;
+    min-height: 200px;
+    width: fit-content;
+    min-width: 500px;
+    background-color: $white;
+    border-radius: 5px;
+    animation: scaleUp 500ms;
+    transform-origin: center center;
+
+    .close {
+      position: absolute;
+      right: 12px;
+      top: 12px;
+      z-index: 10;
+      padding: 5px;
+      border-radius: 5px;
+      cursor: pointer;
+      background-color: $white-2;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 26px;
+      width: 26px;
+    }
+  }
+
+  @keyframes scaleUp {
+    from {
+      transform: scale(0);
+    }
+
+    to {
+      transform: scale(1);
+    }
+  }
+
+  .preventAnimation {
+    animation: none;
+  }
+}
+
+.mobileContainer {
+  height: 100vh;
+  width: 100%;
+  position: fixed;
+  top: auto;
+  left: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  z-index: 200;
+
+  @keyframes moveup {
+    from {
+      transform: translateY(100%);
+    }
+
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  .inner {
+    position: relative;
+    width: 100vw;
+    height: fit-content;
+    min-height: 200px;
+    max-height: calc(100vh - 110px);
+    background-color: $white;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    animation: moveup 0.5s forwards;
+    overflow-y: auto;
+
+    .modalTitle {
+      position: sticky;
+      top: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px;
+      padding-bottom: 5px;
+      margin-bottom: 15px;
+      z-index: 12900;
+
+      .heading {
+        font-size: 1rem;
+        font-weight: bold;
+      }
+
+      svg {
+        height: 20px;
+        width: 20px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+      }
+    }
+  }
+}
+
+.fullScreenMobile {
+  .inner {
+    // height: 100%;
+    // max-height: 100%;
+    border-radius: 5px;
+    position: relative;
+
+    .controls {
+      position: sticky;
+      bottom: 0;
+      width: 100%;
+      background-color: $white;
+      padding: 5px 10px;
+      border-radius: 5px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      border-top: 1px solid $white-2;
+      box-shadow: $shadow-2;
+
+      .icon {
+        svg {
+          height: 18px;
+          width: 18px;
+        }
+      }
+    }
+  }
+}
+
+.modalWithTitle {
+  .inner {
+    padding-top: 0 !important;
+  }
+}
+
+.close_btn {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  padding: 10px;
+  cursor: pointer;
+  z-index: 10;
+  border: none;
+}

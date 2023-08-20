@@ -1,0 +1,45 @@
+@import "styles/variables";
+
+.banner {
+  background-color: $primary;
+  padding: 10px 20px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+
+  .title {
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 25px;
+    color: $white;
+    text-align: center;
+  }
+}
+
+@keyframes blinking {
+  0% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+.blink {
+  .title {
+    animation: blinking 2s linear infinite;
+  }
+}
+
+.redBanner {
+  background-color: $red;
+}
+
+.greenBanner {
+  background-color: $green;
+}

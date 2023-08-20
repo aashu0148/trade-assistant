@@ -1,0 +1,153 @@
+@import "styles/_variables";
+
+.container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  .label {
+    font-size: 16px;
+    line-height: 22px;
+    font-weight: 400;
+    color: $gray-2;
+
+    span {
+      font-size: 0.875rem;
+    }
+  }
+
+  .inputContainer {
+    position: relative;
+    width: 100%;
+    height: fit-content;
+    margin: 1px 0;
+    padding: 0px;
+    display: flex;
+    gap: 5px;
+    align-items: center;
+
+    .text {
+      font-size: 16px;
+      line-height: 26px;
+      font-weight: 500;
+      padding: 3px;
+      padding-left: 15px;
+    }
+
+    input {
+      flex: 1;
+      margin: 0;
+      font-size: 16px;
+      line-height: 26px;
+      font-weight: 500;
+      padding: 8px 18px;
+      height: 100%;
+      width: 100%;
+      outline: none;
+      border-color: transparent;
+      border-radius: 5px;
+      background-color: transparent;
+
+      &::placeholder {
+        color: $gray;
+      }
+
+      &:disabled {
+        background-color: $white-2;
+      }
+    }
+
+    input[type="color"] {
+      --webkit-appearance: none;
+      border: none;
+      height: 30px;
+      border-radius: 5px;
+      padding: 5px;
+    }
+    input[type="color"]::-webkit-color-swatch-wrapper {
+      padding: 0;
+    }
+    input[type="color"]::-webkit-color-swatch {
+      border: none;
+    }
+
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    .passwordInput {
+      padding-right: 31px;
+    }
+
+    .icon {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    .eye {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      cursor: pointer;
+      height: 18px;
+      width: 18px;
+      transform: translateY(-50%);
+
+      svg {
+        height: 100%;
+        width: 100%;
+        color: $gray;
+      }
+    }
+
+    @media (max-width: 768px) {
+      margin: 0;
+
+      input {
+        font-size: 14px;
+        line-height: 21px;
+        padding: 9px 16px;
+      }
+
+      .passwordInput {
+        padding-right: 20px;
+      }
+    }
+  }
+
+  .hint {
+    font-size: 14px;
+    line-height: 18px;
+    font-style: italic;
+    font-weight: 500;
+  }
+
+  .errorMsg {
+    color: red;
+    font-weight: 600;
+    font-size: 0.875rem;
+    padding-left: 3px;
+  }
+}
+
+.selectContainer {
+  margin: 1px 0;
+}
+
+@media (max-width: 768px) {
+  .container {
+    .label {
+      font-size: 0.875rem;
+    }
+
+    input {
+      height: 35px;
+      font-size: 0.875rem;
+    }
+  }
+}

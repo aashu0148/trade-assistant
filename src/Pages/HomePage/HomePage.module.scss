@@ -1,0 +1,55 @@
+@import "styles/variables";
+
+.container {
+  padding: 25px;
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+  align-items: center;
+
+  .header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    row-gap: 10px;
+    justify-content: space-between;
+    align-items: center;
+
+    .title {
+      font-size: 26px;
+      font-weight: bold;
+    }
+
+    .buttons {
+      margin-left: auto;
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+  }
+
+  .chart {
+    width: 1200px;
+    overflow-x: auto;
+
+    .chartInner {
+      height: 700px;
+      width: 2000px;
+    }
+
+    canvas {
+      min-height: 250px;
+    }
+  }
+
+  @media (max-width: $breakpoint-md) {
+    padding: 20px;
+    gap: 20px;
+
+    .header {
+      .title {
+        font-size: 20px;
+      }
+    }
+  }
+}
