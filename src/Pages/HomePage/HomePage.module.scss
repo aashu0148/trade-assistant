@@ -28,6 +28,21 @@
     }
   }
 
+  .controls {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    justify-content: center;
+
+    .input {
+      height: 40px;
+
+      input {
+        padding: 4px 8px;
+      }
+    }
+  }
+
   .chart {
     width: 1200px;
     overflow-x: auto;

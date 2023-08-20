@@ -9,7 +9,15 @@ export const handleNumericInputKeyDown = (event) => {
     key.toLowerCase() === "arrowright" ||
     key.toLowerCase() === "arrowup" ||
     key.toLowerCase() === "arrowdown" ||
-    (event.ctrlKey && (key == "v" || key == "V"))
+    (event.ctrlKey &&
+      (key == "v" ||
+        key == "V" ||
+        key == "c" ||
+        key == "C" ||
+        key == "a" ||
+        key == "A" ||
+        key == "x" ||
+        key == "X"))
   )
     return;
 

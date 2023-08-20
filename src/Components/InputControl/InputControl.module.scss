@@ -4,13 +4,13 @@
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 
   .label {
     font-size: 16px;
-    line-height: 22px;
+    line-height: 24px;
     font-weight: 400;
-    color: $gray-2;
+    color: $gray;
 
     span {
       font-size: 0.875rem;
@@ -21,11 +21,56 @@
     position: relative;
     width: 100%;
     height: fit-content;
-    margin: 1px 0;
+    margin: 3px 0;
     padding: 0px;
     display: flex;
     gap: 5px;
     align-items: center;
+
+    &:has(input:disabled) {
+      background-color: $white-2;
+    }
+
+    input:disabled + .numericControl {
+      background-color: $white-2;
+      pointer-events: none;
+    }
+
+    .numericControl {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 4px 2px;
+      height: 100%;
+      align-items: center;
+
+      .controlIcon {
+        user-select: none;
+        cursor: n-resize;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 18px;
+        width: 18px;
+
+        &:hover {
+          svg {
+            fill: $black;
+          }
+        }
+
+        svg {
+          fill: $gray;
+          height: 100%;
+          width: 100%;
+          transition: 200ms;
+        }
+      }
+
+      .controlIcon.down {
+        cursor: s-resize;
+      }
+    }
 
     .text {
       font-size: 16px;
@@ -41,7 +86,7 @@
       font-size: 16px;
       line-height: 26px;
       font-weight: 500;
-      padding: 8px 18px;
+      padding: 12px 20px;
       height: 100%;
       width: 100%;
       outline: none;
@@ -136,7 +181,7 @@
 }
 
 .selectContainer {
-  margin: 1px 0;
+  margin: 3px 0;
 }
 
 @media (max-width: 768px) {

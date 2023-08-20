@@ -25,6 +25,7 @@ import {
 } from "utils/util";
 
 import styles from "./HomePage.module.scss";
+import InputControl from "../../Components/InputControl/InputControl";
 
 ChartJS.register(
   CategoryScale,
@@ -78,16 +79,17 @@ const signalWeight = {
 
 function HomePage() {
   const [displayIndex, setDisplayIndex] = useState(0);
+  const [chartDisplayIndices, setChartDisplayIndices] = useState([0, 200]);
   const [displayChartStartIndex, setDisplayChartStartIndex] = useState(0);
   const [tradesTaken, setTradesTaken] = useState([]);
 
   const oneTimeDisplayCount = 450;
   const finalStockPrices = stockPrices.c.slice(
-    displayChartStartIndex,
-    displayChartStartIndex + oneTimeDisplayCount
+    chartDisplayIndices[0],
+    chartDisplayIndices[1]
   );
   const finalStockTimestamps = stockPrices.t
-    .slice(displayChartStartIndex, displayChartStartIndex + oneTimeDisplayCount)
+    .slice(chartDisplayIndices[0], chartDisplayIndices[1])
     .map((item) => item * 1000);
   const lowestStockPrice = finalStockPrices.reduce(
     (acc, curr) => (curr < acc ? curr : acc),
@@ -804,7 +806,7 @@ function HomePage() {
 
   useEffect(() => {
     setTradesTaken([]);
-  }, [displayChartStartIndex]);
+  }, [chartDisplayIndices]);
 
   return (
     <div className={styles.container}>
@@ -816,20 +818,36 @@ function HomePage() {
         Click me
       </button>
 
-      <div>
-        <input
-          style={{ width: "500px", transform: "scale(1.5)" }}
-          type="range"
-          max={stockPrices.c.length}
+      <div className={styles.controls}>
+        <InputControl
+          className={styles.input}
+          placeholder="min"
+          max={chartDisplayIndices[1] - 50}
           min={0}
-          step={1}
-          onChange={(e) => {
-            setDisplayIndex(e.target.value);
-            debounce(() => setDisplayChartStartIndex(parseInt(e.target.value)));
-          }}
+          numericInput
+          value={chartDisplayIndices[0]}
+          onChange={(e) =>
+            setChartDisplayIndices((prev) => [
+              parseInt(e.target.value),
+              prev[1],
+            ])
+          }
         />
 
-        <h3 style={{ textAlign: "center" }}>{displayIndex}</h3>
+        <InputControl
+          className={styles.input}
+          placeholder="max"
+          max={2000}
+          min={0}
+          numericInput
+          value={chartDisplayIndices[1]}
+          onChange={(e) =>
+            setChartDisplayIndices((prev) => [
+              prev[0],
+              parseInt(e.target.value),
+            ])
+          }
+        />
       </div>
 
       <div className={styles.chart}>

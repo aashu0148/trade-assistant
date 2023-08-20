@@ -16,13 +16,13 @@ function InputSelect({
 }) {
   const colors = {
     black: "#040406",
-    primary: "#f327a5",
-    primary2: "#ec74be",
+    primary: "#197beb",
+    primary2: "#5ba0ee",
     red: "#ff5050",
     gray: "#73646f",
     gray2: "#3f393e",
-    white2: "#f3f0f3",
-    pinkishWhite: "#f7d5ea",
+    white2: "#f0f0f3",
+    bluishWhite: "#f1f8ff",
   };
 
   const customSelectStyle = {
@@ -53,7 +53,7 @@ function InputSelect({
           ? colors.primary
           : isFocused
           ? colors.primary2
-          : colors.pinkishWhite,
+          : colors.bluishWhite,
         color: isSelected || isFocused ? "#fff" : colors.black,
       },
     }),
