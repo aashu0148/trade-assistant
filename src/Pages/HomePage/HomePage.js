@@ -78,18 +78,14 @@ const signalWeight = {
 };
 
 function HomePage() {
-  const [displayIndex, setDisplayIndex] = useState(0);
   const [chartDisplayIndices, setChartDisplayIndices] = useState([0, 200]);
-  const [displayChartStartIndex, setDisplayChartStartIndex] = useState(0);
   const [tradesTaken, setTradesTaken] = useState([]);
 
-  const oneTimeDisplayCount = 450;
-  const finalStockPrices = stockPrices.c.slice(
-    chartDisplayIndices[0],
-    chartDisplayIndices[1]
-  );
+  const cdi1 = chartDisplayIndices[0];
+  const cdi2 = chartDisplayIndices[1] - cdi1 < 50 ? 50 : chartDisplayIndices[1];
+  const finalStockPrices = stockPrices.c.slice(cdi1, cdi2);
   const finalStockTimestamps = stockPrices.t
-    .slice(chartDisplayIndices[0], chartDisplayIndices[1])
+    .slice(cdi1, cdi2)
     .map((item) => item * 1000);
   const lowestStockPrice = finalStockPrices.reduce(
     (acc, curr) => (curr < acc ? curr : acc),
