@@ -1,5 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { macd, rsi, sma } from "indicatorts";
+// import { macd, rsi, sma, onBalanceVolume } from "indicatorts";
+import {
+  sma as smaIndicator,
+  rsi as rsiIndicator,
+  macd as macdIndicator,
+  obv as obvIndicator,
+} from "technicalindicators";
+import {
+  SMA as technicalIndicatorSMA,
+  RSI as technicalIndicatorRSI,
+  MACD as technicalIndicatorMACD,
+} from "@debut/indicators";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -84,6 +95,7 @@ function HomePage() {
   const cdi1 = chartDisplayIndices[0];
   const cdi2 = chartDisplayIndices[1] - cdi1 < 50 ? 50 : chartDisplayIndices[1];
   const finalStockPrices = stockPrices.c.slice(cdi1, cdi2);
+  const finalStockVolumes = stockPrices.v.slice(cdi1, cdi2);
   const finalStockTimestamps = stockPrices.t
     .slice(cdi1, cdi2)
     .map((item) => item * 1000);
@@ -96,10 +108,55 @@ function HomePage() {
     0
   );
 
-  const calculatedSma = sma(14, finalStockPrices);
-  const calculatedSma200 = sma(200, finalStockPrices);
-  const calculatedRsi = rsi(finalStockPrices);
-  const calculatedMacd = macd(finalStockPrices);
+  const calculateIndicators = (closingPrices = []) => {
+    const smaPeriod = 14; // Period for SMA and RSI
+    const macdFastPeriod = 19;
+    const macdSlowPeriod = 30;
+    const macdSignalPeriod = 8;
+
+    const sma = new technicalIndicatorSMA(smaPeriod);
+    const rsi = new technicalIndicatorRSI(smaPeriod);
+    const macd = new technicalIndicatorMACD(
+      macdFastPeriod,
+      macdSlowPeriod,
+      macdSignalPeriod
+    );
+
+    const indicators = [];
+
+    for (const price of closingPrices) {
+      const smaValue = sma.nextValue(price);
+      const rsiValue = rsi.nextValue(price);
+      const macdValues = macd.nextValue(price);
+
+      indicators.push({
+        price,
+        sma: smaValue,
+        rsi: rsiValue,
+        macd: macdValues?.macd,
+        signal: macdValues?.signal,
+        histogram: macdValues?.histogram,
+      });
+    }
+
+    return indicators;
+  };
+
+  const calculatedSma = smaIndicator({
+    period: 14,
+    values: finalStockPrices,
+  });
+  const calculatedSma200 = smaIndicator({
+    period: 200,
+    values: finalStockPrices,
+  });
+  const calculatedRsi = calculateIndicators(finalStockPrices).map(
+    (item) => item.rsi
+  );
+  const calculatedMacd = calculateIndicators(finalStockPrices).map((item) => ({
+    macd: item.macd,
+    signal: item.signal,
+  }));
 
   const debounce = (func) => {
     clearTimeout(timer);
@@ -447,7 +504,7 @@ function HomePage() {
 
   const pricesData = {
     labels: finalStockTimestamps.map(
-      (t, i) => i
+      (t, i) => cdi1 + i
       // new Date(t).toLocaleString("en-in")
     ),
     datasets: [
@@ -503,14 +560,14 @@ function HomePage() {
     datasets: [
       {
         label: "Signal line",
-        data: calculatedMacd.signalLine,
+        data: calculatedMacd.map((item) => item.signal),
         borderColor: "red",
         pointRadius: 0,
         borderWidth: 1,
       },
       {
         label: "MACD line",
-        data: calculatedMacd.macdLine,
+        data: calculatedMacd.map((item) => item.macd),
         borderColor: "green",
         pointRadius: 0,
         borderWidth: 1,
@@ -518,33 +575,27 @@ function HomePage() {
     ],
   };
 
-  const getMacdSignal = (macdLines, signalLines) => {
+  const getMacdSignal = (macd) => {
     if (
-      !macdLines?.length ||
-      !signalLines?.length ||
-      macdLines.length > 3 ||
-      signalLines.length > 3
+      !macd?.length ||
+      macd.length > 3 ||
+      macd.some((item) => item.macd == undefined || item.signal == undefined)
     )
       return signalEnum.hold;
 
-    let isCrossed = false,
-      signal = signalEnum.hold,
+    if (macd[0].macd < 0.015 && macd[0].macd > -0.015) return signalEnum.hold;
+
+    let signal = signalEnum.hold,
       s = 0;
-    for (let i = 0; i < macdLines.length; ++i) {
-      const d = macdLines[i] - signalLines[i];
+    for (let i = 0; i < macd.length; ++i) {
+      const d = macd[i].macd - macd[i].signal;
 
       if (d > 0) {
-        if (s == -1) {
-          isCrossed = true;
-          signal = signalEnum.buy;
-        }
+        if (s == -1) signal = signalEnum.buy;
 
         s = 1;
       } else if (d < 0) {
-        if (s == 1) {
-          isCrossed = true;
-          signal = signalEnum.sell;
-        }
+        if (s == 1) signal = signalEnum.sell;
 
         s = -1;
       }
@@ -553,14 +604,69 @@ function HomePage() {
     return signal;
   };
 
-  const runFunc = () => {
-    // const allPrices = stockPrices.c;
-    const allPrices = finalStockPrices;
+  const getSmaCrossedSignal = ({ smaLow = [], smaHigh = [] }) => {
+    if (
+      !smaLow?.length ||
+      !smaHigh?.length ||
+      smaLow.length > 3 ||
+      smaHigh.length > 3
+    )
+      return signalEnum.hold;
 
-    const SMA = sma(14, allPrices);
-    const SMA200 = sma(200, allPrices);
-    const RSI = rsi(allPrices);
-    const MACD = macd(allPrices);
+    let signal = signalEnum.hold,
+      s = 0;
+    for (let i = 0; i < smaLow.length; ++i) {
+      const d = smaLow[i] - smaHigh[i];
+
+      if (d > 0) {
+        if (s == -1) signal = signalEnum.buy;
+
+        s = 1;
+      } else if (d < 0) {
+        if (s == 1) signal = signalEnum.sell;
+
+        s = -1;
+      }
+    }
+
+    return signal;
+  };
+
+  const takeTrades = (
+    allPrices,
+    allVolumes = [],
+    {
+      rsiLow = 48,
+      rsiHigh = 63,
+      smaLow = 18,
+      smaHigh = 150,
+      rsiPeriod = 8,
+      macdFastPeriod = 14,
+      macdSlowPeriod = 25,
+      macdSignalPeriod = 8,
+    }
+  ) => {
+    // const smallMA = sma(smaLow, allPrices);
+    // const bigMA = sma(smaHigh, allPrices);
+    // const RSI = rsi(allPrices);
+    // const MACD = macd(allPrices);
+    // const OBV = onBalanceVolume(allPrices, allVolumes);
+
+    const indicatorSmallMA = new technicalIndicatorSMA(smaLow);
+    const indicatorBigMA = new technicalIndicatorSMA(smaHigh);
+    const indicatorRsi = new technicalIndicatorRSI(rsiPeriod);
+    const indicatorMacd = new technicalIndicatorMACD(
+      macdFastPeriod,
+      macdSlowPeriod,
+      macdSignalPeriod
+    );
+
+    const indicators = {
+      smallMA: [],
+      bigMA: [],
+      rsi: [],
+      macd: [],
+    };
 
     let isTradeTaken = false,
       targetProfitPercent = 1.4 / 100,
@@ -574,7 +680,23 @@ function HomePage() {
       noOfBreakdowns: 0,
     };
 
-    for (let i = 100; i < allPrices.length; i++) {
+    const startTakingTradeIndex = 200;
+
+    for (let i = 0; i < startTakingTradeIndex; ++i) {
+      const price = allPrices[i];
+
+      const smaL = indicatorSmallMA.nextValue(price);
+      const smaH = indicatorBigMA.nextValue(price);
+      const rsi = indicatorRsi.nextValue(price);
+      const macd = indicatorMacd.nextValue(price);
+
+      indicators.smallMA.push(smaL);
+      indicators.bigMA.push(smaH);
+      indicators.rsi.push(rsi);
+      indicators.macd.push(macd);
+    }
+
+    for (let i = startTakingTradeIndex; i < allPrices.length; i++) {
       const prices = allPrices.slice(0, i + 1);
 
       const prevPrice = prices[i - 1];
@@ -627,13 +749,31 @@ function HomePage() {
           }
         }
       } else {
+        if (indicators.smallMA.length - 1 <= i) {
+          const smaL = indicatorSmallMA.nextValue(price);
+          const smaH = indicatorBigMA.nextValue(price);
+          const rsi = indicatorRsi.nextValue(price);
+          const macd = indicatorMacd.nextValue(price);
+
+          indicators.smallMA.push(smaL);
+          indicators.bigMA.push(smaH);
+          indicators.rsi.push(rsi);
+          indicators.macd.push(macd);
+        }
+
+        const smallMA = indicators.smallMA;
+        const bigMA = indicators.bigMA;
+        const RSI = indicators.rsi;
+        const MACD = indicators.macd;
+        // const OBV = obvIndicator({
+        //   close: prices,
+        //   volume: allVolumes,
+        // });
+
         const vps = getVPoints(prices);
         const ranges = getSupportResistanceRangesFromVPoints(vps, prices);
         const strongSupportResistances = ranges.filter(
           (item) => item.stillStrong
-        );
-        const validRanges = strongSupportResistances.filter(
-          (item) => item.start.index < i
         );
         // const pricesWithTrends = getTrendEstimates(prices);
         // const trend = pricesWithTrends[i].trend;
@@ -642,10 +782,10 @@ function HomePage() {
         const targetProfit = targetProfitPercent * price;
         const stopLoss = stopLossPercent * price;
 
-        const isSRBreakout = validRanges.some(
+        const isSRBreakout = strongSupportResistances.some(
           (item) => item.max < price && item.max > prevPrice
         );
-        const isSRBreakdown = validRanges.some(
+        const isSRBreakdown = strongSupportResistances.some(
           (item) => item.min > price && item.min < prevPrice
         );
         const srSignal = isSRBreakout
@@ -654,20 +794,22 @@ function HomePage() {
           ? signalEnum.sell
           : signalEnum.hold;
         const rsiSignal =
-          rsi < 40
+          rsi < rsiLow
             ? signalEnum.buy
-            : rsi > 60
+            : rsi > rsiHigh
             ? signalEnum.sell
             : signalEnum.hold;
-        const macdSignal = getMacdSignal(
-          MACD.macdLine.slice(i - 2, i + 1),
-          MACD.signalLine.slice(i - 2, i + 1)
-        );
+        const macdSignal = getMacdSignal(MACD.slice(i - 2, i + 1));
+        const smaSignal = getSmaCrossedSignal({
+          smaLow: smallMA.slice(i - 2, i + 1),
+          smaHigh: bigMA.slice(i - 2, i + 1),
+        });
 
         const netWeight =
           signalWeight[srSignal] * 2 +
           signalWeight[rsiSignal] +
-          signalWeight[macdSignal] * 3;
+          signalWeight[macdSignal] * 2 +
+          signalWeight[smaSignal] * 2;
 
         const isBuySignal = netWeight >= 3;
         const isSellSignal = netWeight <= -3;
@@ -675,7 +817,9 @@ function HomePage() {
         const analytic = {
           rsi: rsiSignal,
           macd: macdSignal,
+          macdVal: MACD.slice(i - 2, i + 1),
           sr: srSignal,
+          sma: smaSignal,
           netSignal: isBuySignal
             ? signalEnum.buy
             : isSellSignal
@@ -700,8 +844,8 @@ function HomePage() {
           }
 
           let nearestResistance;
-          for (let j = 0; j < validRanges.length; ++j) {
-            const range = validRanges[j];
+          for (let j = 0; j < strongSupportResistances.length; ++j) {
+            const range = strongSupportResistances[j];
             if (range.max < price) continue;
 
             // if price is in between a range
@@ -746,8 +890,8 @@ function HomePage() {
           }
 
           let nearestSupport;
-          for (let j = 0; j < validRanges.length; ++j) {
-            const range = validRanges[j];
+          for (let j = 0; j < strongSupportResistances.length; ++j) {
+            const range = strongSupportResistances[j];
             if (range.min > price) continue;
 
             // if price is in between a range
@@ -784,20 +928,107 @@ function HomePage() {
       }
     }
 
-    setTradesTaken(trades);
+    return { trades, analytics };
+  };
+
+  const testTakeTradeForBestNumbers = (allPrices, allVols) => {
+    //     {
+    //     "profitPercent": 42.30769230769231,
+    //     "macdFastPeriod": 19,
+    //     "macdSlowPeriod": 30,
+    //     "rl": 47,
+    //     "rh": 62,
+    //     "sl": 19,
+    //     "sh": 152,
+    //     "total": 26,
+    //     "profitable": 11,
+    //     "lossMaking": 15
+    // }
+    //     {
+    //     "profitPercent": 52.38095238095239,
+    //     "macdFastPeriod": 14,
+    //     "macdSlowPeriod": 25,
+    //     "rl": 48,
+    //     "rh": 63,
+    //     "sl": 18,
+    //     "sh": 150,
+    //     "total": 21,
+    //     "profitable": 11,
+    //     "lossMaking": 10
+    // }
+
+    let goodTradeMetrics = {};
+
+    for (let ri = 35, rj = 50; ri < 49; ++ri, ++rj) {
+      for (let sl = 18, sh = 150; sl < 25; ++sl, sh += 2) {
+        for (let macdFP = 9, macdSP = 20; macdFP < 20; ++macdFP, ++macdSP) {
+          const { trades, analytics } = takeTrades(allPrices, allVols, {
+            rsiLow: ri,
+            rsiHigh: rj,
+            smaLow: sl,
+            smaHigh: sh,
+            macdFastPeriod: macdFP,
+            macdSlowPeriod: macdSP,
+          });
+
+          const total = trades.length;
+          const profits = trades.filter(
+            (item) => item.result == "profit"
+          ).length;
+
+          const profitPercent = (profits / total) * 100;
+
+          if (
+            !goodTradeMetrics.profitPercent ||
+            profitPercent > goodTradeMetrics.profitPercent
+          ) {
+            goodTradeMetrics = {
+              profitPercent,
+              macdFastPeriod: macdFP,
+              macdSlowPeriod: macdSP,
+              rl: ri,
+              rh: rj,
+              sl,
+              sh,
+              total,
+              profitable: profits,
+              lossMaking: total - profits,
+            };
+          }
+
+          console.log(
+            `rl:${ri}, rh:${rj}, sl:${sl}, sh:${sh} fp:${macdFP} P-P:${parseInt(
+              profitPercent
+            )}`,
+            goodTradeMetrics
+          );
+        }
+      }
+    }
+
+    console.log("🔵", goodTradeMetrics);
+  };
+
+  const runFunc = () => {
+    const allPrices = stockPrices.c;
+    const allVols = stockPrices.v;
+    // const allPrices = finalStockPrices;
+    // const allVols = finalStockVolumes;
+
+    // testTakeTradeForBestNumbers(allPrices, allVols);
+    // return;
+
+    const { trades } = takeTrades(allPrices, allVols, {});
+    const total = trades.length;
+    const profitable = trades.filter((item) => item.result == "profit").length;
+
     console.log(
-      "TRADES",
       trades,
-      `Profitable:${trades.reduce(
-        (acc, curr) => (curr.result == "profit" ? acc + 1 : acc),
-        0
-      )}`,
-      `Loss making:${trades.reduce(
-        (acc, curr) => (curr.result == "loss" ? acc + 1 : acc),
-        0
-      )}`,
-      analytics
+      total,
+      profitable,
+      `${((profitable / total) * 100).toFixed(2)}%`
     );
+    // setTradesTaken(trades);
   };
 
   useEffect(() => {
@@ -888,8 +1119,8 @@ function HomePage() {
                 type: "box",
                 xMin: 0,
                 xMax: finalStockPrices.length,
-                yMin: 40,
-                yMax: 60,
+                yMin: 48,
+                yMax: 63,
                 backgroundColor: `rgba(45, 174, 246, 0.25)`,
                 borderColor: `rgb(45,174,246)`,
               },
