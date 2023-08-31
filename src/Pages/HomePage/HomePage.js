@@ -10,6 +10,7 @@ import {
   SMA as technicalIndicatorSMA,
   RSI as technicalIndicatorRSI,
   MACD as technicalIndicatorMACD,
+  BollingerBands as technicalIndicatorBollingerBands,
 } from "@debut/indicators";
 import {
   Chart as ChartJS,
@@ -27,7 +28,7 @@ import { Line } from "react-chartjs-2";
 import annotationPlugin from "chartjs-plugin-annotation";
 import { CrosshairPlugin, Interpolate } from "chartjs-plugin-crosshair";
 
-import { stockPrices } from "utils/constants";
+import { hclStockPrices, stockPrices } from "utils/constants";
 import {
   calculateAngle,
   formatTime,
@@ -58,11 +59,6 @@ Interaction.modes.interpolate = Interpolate;
 
 let timer;
 const timeFrame = 5;
-const dxForTimeFrames = {
-  5: 0.02 / 100,
-  15: 0.08 / 100,
-  60: 1.5 / 100,
-};
 const getDxForPrice = (price, time = timeFrame) => {
   const dxPercentForTimeFrames = {
     5: 0.17 / 100,
@@ -312,64 +308,62 @@ function HomePage() {
     return finalRanges;
   };
 
-  const getTrendEstimates = (prices = []) => {
+  const getTrendEstimates = (prices = [], startCheckFrom = 12) => {
     if (!prices?.length) return [];
 
-    const vps = getVPoints(prices, 7);
+    const getHighestAndLowestOfLastRange = (prices = [], a, b) => {
+      const arrLength = b - a;
+      if (arrLength < 6) return;
 
-    const chunkLength = 4,
-      output = [
-        ...vps.slice(0, chunkLength).map((item) => ({
-          vPoint: {
-            ...item,
-          },
-          trend: trendEnum.range,
-        })),
-      ];
-    for (let i = chunkLength; i < vps.length; ++i) {
-      const startPoint = vps[i - chunkLength];
-      const currPoint = vps[i];
+      const sortedPrices = prices.slice(a, b).sort();
 
-      const diff = currPoint.value - startPoint.value;
-      const allowedDiff = 0.003 * currPoint.value;
+      const lowestAvg = (sortedPrices[0] + sortedPrices[1]) / 2;
+      const highestAvg =
+        (sortedPrices[arrLength - 1] + sortedPrices[arrLength - 2]) / 2;
 
-      output.push({
-        vPoint: {
-          ...currPoint,
-        },
-        trend:
-          Math.abs(diff) > allowedDiff
-            ? diff > 0
-              ? trendEnum.up
-              : trendEnum.down
-            : trendEnum.range,
+      return {
+        lowest: lowestAvg,
+        highest: highestAvg,
+      };
+    };
+
+    const trends = [];
+
+    const range = 12;
+    if (startCheckFrom < range) startCheckFrom = range;
+
+    for (let i = 0; i < startCheckFrom; ++i) {
+      trends.push({
+        index: i,
+        trend: trendEnum.range,
       });
     }
 
-    const priceWithTrend = [];
-    for (let i = 0; i < output.length; ++i) {
-      let startIndex = i == 0 ? 0 : output[i - 1].vPoint.index;
+    for (let i = startCheckFrom; i < prices.length; ++i) {
+      const price = prices[i];
+      const { highest, lowest } = getHighestAndLowestOfLastRange(
+        prices,
+        i - range,
+        i
+      );
+      const difference = highest - lowest;
+      const differencePercent = (difference / price) * 100;
 
-      const currentItem = output[i].vPoint;
-      for (let j = startIndex; j < currentItem.index; ++j) {
-        priceWithTrend[j] = output[i];
+      if (differencePercent < 0.7) {
+        trends.push({
+          index: i,
+          trend: trendEnum.range,
+        });
+        continue;
       }
+
+      trends.push({
+        index: i,
+        trend: price > highest ? trendEnum.up : trendEnum.down,
+      });
     }
 
-    const remainingVPointAtLast = prices.length - priceWithTrend.length;
-
-    priceWithTrend.push(
-      ...Array(remainingVPointAtLast).map(() => ({
-        vPoint: {},
-        trend: trendEnum.range,
-      }))
-    );
-
-    return priceWithTrend.map((item, i) => ({
-      ...item,
-      index: i,
-      value: prices[i],
-    }));
+    return trends;
   };
 
   const groupByTrends = (trends = []) => {
@@ -392,8 +386,6 @@ function HomePage() {
   const ranges = getSupportResistanceRangesFromVPoints(vps, finalStockPrices);
   const pricesWithTrends = getTrendEstimates(finalStockPrices);
   const trends = groupByTrends(pricesWithTrends);
-
-  // console.log(pricesWithTrends);
 
   const pricesOptions = {
     // responsive: true,
@@ -440,20 +432,20 @@ function HomePage() {
       },
     },
     annotations: [
-      // ...trends.map((item, i) => ({
-      //   type: "box",
-      //   xMin: i == 0 ? 0 : trends[i - 1].index,
-      //   xMax: item.index,
-      //   yMin: lowestStockPrice,
-      //   yMax: highestStockPrice,
-      //   backgroundColor:
-      //     item.trend == "up"
-      //       ? `rgba(17,221,96, 0.18)`
-      //       : item.trend == "down"
-      //       ? "rgba(221,17,17, 0.14)"
-      //       : "rgba(150,150,150, 0.18)",
-      //   borderColor: "transparent",
-      // })),
+      ...trends.map((item, i) => ({
+        type: "box",
+        xMin: i == 0 ? 0 : trends[i - 1].index,
+        xMax: item.index,
+        yMin: lowestStockPrice,
+        yMax: highestStockPrice,
+        backgroundColor:
+          item.trend == "up"
+            ? `rgba(17,221,96, 0.18)`
+            : item.trend == "down"
+            ? "rgba(221,17,17, 0.14)"
+            : "rgba(150,150,150, 0.18)",
+        borderColor: "transparent",
+      })),
       ...vps.map((item, i) => ({
         type: "point",
         xValue: item.index,
@@ -642,8 +634,10 @@ function HomePage() {
       smaHigh = 150,
       rsiPeriod = 8,
       macdFastPeriod = 14,
-      macdSlowPeriod = 25,
+      macdSlowPeriod = 24,
       macdSignalPeriod = 8,
+      bollingerBandPeriod = 23,
+      bollingerBandStdDev = 4,
     }
   ) => {
     // const smallMA = sma(smaLow, allPrices);
@@ -660,12 +654,17 @@ function HomePage() {
       macdSlowPeriod,
       macdSignalPeriod
     );
+    const indicatorBollingerBands = new technicalIndicatorBollingerBands(
+      bollingerBandPeriod,
+      bollingerBandStdDev
+    );
 
     const indicators = {
       smallMA: [],
       bigMA: [],
       rsi: [],
       macd: [],
+      bollinderBand: [],
     };
 
     let isTradeTaken = false,
@@ -689,11 +688,13 @@ function HomePage() {
       const smaH = indicatorBigMA.nextValue(price);
       const rsi = indicatorRsi.nextValue(price);
       const macd = indicatorMacd.nextValue(price);
+      const bollingerBand = indicatorBollingerBands.nextValue(price);
 
       indicators.smallMA.push(smaL);
       indicators.bigMA.push(smaH);
       indicators.rsi.push(rsi);
-      indicators.macd.push(macd);
+      indicators.macd.push(macd || {});
+      indicators.bollinderBand.push(bollingerBand || {});
     }
 
     for (let i = startTakingTradeIndex; i < allPrices.length; i++) {
@@ -754,17 +755,20 @@ function HomePage() {
           const smaH = indicatorBigMA.nextValue(price);
           const rsi = indicatorRsi.nextValue(price);
           const macd = indicatorMacd.nextValue(price);
+          const bollinderBand = indicatorBollingerBands.nextValue(price);
 
           indicators.smallMA.push(smaL);
           indicators.bigMA.push(smaH);
           indicators.rsi.push(rsi);
-          indicators.macd.push(macd);
+          indicators.macd.push(macd || {});
+          indicators.bollinderBand.push(bollinderBand || {});
         }
 
         const smallMA = indicators.smallMA;
         const bigMA = indicators.bigMA;
         const RSI = indicators.rsi;
         const MACD = indicators.macd;
+        const BB = indicators.bollinderBand;
         // const OBV = obvIndicator({
         //   close: prices,
         //   volume: allVolumes,
@@ -775,8 +779,8 @@ function HomePage() {
         const strongSupportResistances = ranges.filter(
           (item) => item.stillStrong
         );
-        // const pricesWithTrends = getTrendEstimates(prices);
-        // const trend = pricesWithTrends[i].trend;
+        const pricesWithTrends = getTrendEstimates(prices, i - 70);
+        const trend = pricesWithTrends[i].trend;
         const rsi = RSI[i];
 
         const targetProfit = targetProfitPercent * price;
@@ -804,10 +808,24 @@ function HomePage() {
           smaLow: smallMA.slice(i - 2, i + 1),
           smaHigh: bigMA.slice(i - 2, i + 1),
         });
+        const trendSignal =
+          trend == trendEnum.down
+            ? signalEnum.sell
+            : trend == trendEnum.up
+            ? signalEnum.buy
+            : signalEnum.hold;
+        const bollinderBandSignal =
+          price >= BB[i].upper
+            ? signalEnum.sell
+            : price <= BB[i].lower
+            ? signalEnum.buy
+            : signalEnum.hold;
 
         const netWeight =
           signalWeight[srSignal] * 2 +
+          signalWeight[trendSignal] +
           signalWeight[rsiSignal] +
+          signalWeight[bollinderBandSignal] * 2 +
           signalWeight[macdSignal] * 2 +
           signalWeight[smaSignal] * 2;
 
@@ -933,18 +951,6 @@ function HomePage() {
 
   const testTakeTradeForBestNumbers = (allPrices, allVols) => {
     //     {
-    //     "profitPercent": 42.30769230769231,
-    //     "macdFastPeriod": 19,
-    //     "macdSlowPeriod": 30,
-    //     "rl": 47,
-    //     "rh": 62,
-    //     "sl": 19,
-    //     "sh": 152,
-    //     "total": 26,
-    //     "profitable": 11,
-    //     "lossMaking": 15
-    // }
-    //     {
     //     "profitPercent": 52.38095238095239,
     //     "macdFastPeriod": 14,
     //     "macdSlowPeriod": 25,
@@ -956,77 +962,96 @@ function HomePage() {
     //     "profitable": 11,
     //     "lossMaking": 10
     // }
+    //    {
+    //     "profitPercent": 55.55555555555556,
+    //     "bollingerBandPeriod": 23,
+    //     "bollingerBandStdDev": 4,
+    //     "total": 27,
+    //     "profitable": 15,
+    //     "lossMaking": 12
+    // }
 
-    let goodTradeMetrics = {};
+    let goodTradeMetrics = [];
 
-    for (let ri = 35, rj = 50; ri < 49; ++ri, ++rj) {
-      for (let sl = 18, sh = 150; sl < 25; ++sl, sh += 2) {
-        for (let macdFP = 9, macdSP = 20; macdFP < 20; ++macdFP, ++macdSP) {
-          const { trades, analytics } = takeTrades(allPrices, allVols, {
-            rsiLow: ri,
-            rsiHigh: rj,
-            smaLow: sl,
-            smaHigh: sh,
-            macdFastPeriod: macdFP,
-            macdSlowPeriod: macdSP,
-          });
+    for (let ri = 46, rj = 62; ri < 49; ++ri, ++rj) {
+      for (let sl = 18, sh = 150; sl < 22; ++sl, sh += 2) {
+        for (let macdFP = 14; macdFP < 16; ++macdFP) {
+          for (let macdSP = 23; macdSP < 25; ++macdSP) {
+            for (let bbP = 22; bbP < 25; ++bbP) {
+              const { trades, analytics } = takeTrades(allPrices, allVols, {
+                rsiLow: ri,
+                rsiHigh: rj,
+                smaLow: sl,
+                smaHigh: sh,
+                macdFastPeriod: macdFP,
+                macdSlowPeriod: macdSP,
+                bollingerBandPeriod: bbP,
+                // bollingerBandStdDev: bbStdDiv,
+              });
 
-          const total = trades.length;
-          const profits = trades.filter(
-            (item) => item.result == "profit"
-          ).length;
+              const total = trades.length;
+              const profits = trades.filter(
+                (item) => item.result == "profit"
+              ).length;
 
-          const profitPercent = (profits / total) * 100;
+              const profitPercent = (profits / total) * 100;
 
-          if (
-            !goodTradeMetrics.profitPercent ||
-            profitPercent > goodTradeMetrics.profitPercent
-          ) {
-            goodTradeMetrics = {
-              profitPercent,
-              macdFastPeriod: macdFP,
-              macdSlowPeriod: macdSP,
-              rl: ri,
-              rh: rj,
-              sl,
-              sh,
-              total,
-              profitable: profits,
-              lossMaking: total - profits,
-            };
+              if (profitPercent > 52) {
+                goodTradeMetrics.push({
+                  profitPercent,
+                  bollingerBandPeriod: bbP,
+                  // bollingerBandStdDev: bbStdDiv,
+                  macdFastPeriod: macdFP,
+                  macdSlowPeriod: macdSP,
+                  rl: ri,
+                  rh: rj,
+                  sl,
+                  sh,
+                  total,
+                  profitable: profits,
+                  lossMaking: total - profits,
+                });
+              }
+
+              console.log(
+                `ri:${ri}, rj:${rj}, sl:${sl}, macdFP:${macdFP}, t:${total} P-P:${parseInt(
+                  profitPercent
+                )}`
+              );
+            }
           }
-
-          console.log(
-            `rl:${ri}, rh:${rj}, sl:${sl}, sh:${sh} fp:${macdFP} P-P:${parseInt(
-              profitPercent
-            )}`,
-            goodTradeMetrics
-          );
         }
       }
     }
+
+    goodTradeMetrics = goodTradeMetrics.sort((a, b) =>
+      a.total > b.total ? -1 : 1
+    );
 
     console.log("🔵", goodTradeMetrics);
   };
 
   const runFunc = () => {
-    const allPrices = stockPrices.c;
-    const allVols = stockPrices.v;
+    const allPrices = hclStockPrices.c;
+    const allVols = hclStockPrices.v;
     // const allPrices = finalStockPrices;
     // const allVols = finalStockVolumes;
 
-    // testTakeTradeForBestNumbers(allPrices, allVols);
-    // return;
+    testTakeTradeForBestNumbers(allPrices, allVols);
+    return;
+
+    const totalTradesNeeded = parseInt(((allPrices.length * 5) / 60 / 6) * 2);
 
     const { trades } = takeTrades(allPrices, allVols, {});
     const total = trades.length;
     const profitable = trades.filter((item) => item.result == "profit").length;
 
     console.log(
-      trades,
-      total,
-      profitable,
-      `${((profitable / total) * 100).toFixed(2)}%`
+      `Needed trades: ${totalTradesNeeded}`,
+      `Takes trades: ${total}`,
+      `Profitable trades: ${profitable}`,
+      `${((profitable / total) * 100).toFixed(2)}%`,
+      trades
     );
     // setTradesTaken(trades);
   };
