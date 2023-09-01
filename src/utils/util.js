@@ -52,13 +52,12 @@ export const getFileHashSha256 = async (blob) => {
   return hashArray.map((h) => h.toString(16).padStart(2, "0")).join("");
 };
 
-export function formatSecondsToMinutesSeconds(seconds) {
-  const minutes = Math.floor(seconds / 60);
+export function formatSecondsToHrMinSec(seconds) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
   const remainingSeconds = parseInt(seconds % 60);
 
-  return `${minutes}:${
-    remainingSeconds < 10 ? "0" + remainingSeconds : remainingSeconds
-  }`;
+  return `${hours}hr ${minutes}min ${remainingSeconds}s`;
 }
 
 export const getDateFormatted = (val, short = false, excludeYear = false) => {

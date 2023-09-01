@@ -31,6 +31,7 @@ import { CrosshairPlugin, Interpolate } from "chartjs-plugin-crosshair";
 import { hclStockPrices, stockPrices } from "utils/constants";
 import {
   calculateAngle,
+  formatSecondsToHrMinSec,
   formatTime,
   getRandomNumber,
   nearlyEquateNums,
@@ -179,14 +180,24 @@ function HomePage() {
     return count;
   };
 
-  const getVPoints = (prices = [], offset = 10) => {
+  const getVPoints = ({
+    prices = [],
+    offset = 10,
+    startFrom = 0,
+    previousOutput = [],
+  }) => {
     if (!prices.length) return [];
 
-    let output = [];
-    for (let i = offset; i < prices.length; ++i) {
+    let output = [...previousOutput];
+    if (startFrom < offset) startFrom = offset;
+
+    let nearby = [];
+    for (let i = startFrom; i < prices.length; ++i) {
       const price = prices[i];
 
-      const nearby = prices.slice(i - offset, i + offset);
+      if (!nearby.length) nearby = prices.slice(i - offset, i + offset);
+      else nearby = [...nearby.slice(1), prices[i + offset - 1]];
+
       const upAllClear = nearby.every((item) => item <= price);
       const downAllClear = nearby.every((item) => item >= price);
 
@@ -382,7 +393,7 @@ function HomePage() {
     return output;
   };
 
-  const vps = getVPoints(finalStockPrices);
+  const vps = getVPoints({ prices: finalStockPrices });
   const ranges = getSupportResistanceRangesFromVPoints(vps, finalStockPrices);
   const pricesWithTrends = getTrendEstimates(finalStockPrices);
   const trends = groupByTrends(pricesWithTrends);
@@ -660,11 +671,13 @@ function HomePage() {
     );
 
     const indicators = {
+      lastCalculatedIndex: 0,
       smallMA: [],
       bigMA: [],
       rsi: [],
       macd: [],
       bollinderBand: [],
+      vPs: [],
     };
 
     let isTradeTaken = false,
@@ -681,6 +694,10 @@ function HomePage() {
 
     const startTakingTradeIndex = 200;
 
+    const vps = getVPoints({
+      prices: allPrices.slice(0, startTakingTradeIndex),
+    });
+    indicators.vPs = [...vps];
     for (let i = 0; i < startTakingTradeIndex; ++i) {
       const price = allPrices[i];
 
@@ -690,6 +707,7 @@ function HomePage() {
       const macd = indicatorMacd.nextValue(price);
       const bollingerBand = indicatorBollingerBands.nextValue(price);
 
+      indicators.lastCalculatedIndex = i;
       indicators.smallMA.push(smaL);
       indicators.bigMA.push(smaH);
       indicators.rsi.push(rsi);
@@ -750,13 +768,22 @@ function HomePage() {
           }
         }
       } else {
-        if (indicators.smallMA.length - 1 <= i) {
+        if (indicators.lastCalculatedIndex < i) {
           const smaL = indicatorSmallMA.nextValue(price);
           const smaH = indicatorBigMA.nextValue(price);
           const rsi = indicatorRsi.nextValue(price);
           const macd = indicatorMacd.nextValue(price);
           const bollinderBand = indicatorBollingerBands.nextValue(price);
+          const vps = getVPoints({
+            prices: prices,
+            startFrom: i - 40,
+            previousOutput: indicators.vPs.filter(
+              (item) => item.index < i - 40
+            ),
+          });
 
+          indicators.lastCalculatedIndex = i;
+          indicators.vPs = vps;
           indicators.smallMA.push(smaL);
           indicators.bigMA.push(smaH);
           indicators.rsi.push(rsi);
@@ -774,12 +801,14 @@ function HomePage() {
         //   volume: allVolumes,
         // });
 
-        const vps = getVPoints(prices);
-        const ranges = getSupportResistanceRangesFromVPoints(vps, prices);
+        const ranges = getSupportResistanceRangesFromVPoints(
+          indicators.vPs,
+          prices
+        );
         const strongSupportResistances = ranges.filter(
           (item) => item.stillStrong
         );
-        const pricesWithTrends = getTrendEstimates(prices, i - 70);
+        const pricesWithTrends = getTrendEstimates(prices, i - 40);
         const trend = pricesWithTrends[i].trend;
         const rsi = RSI[i];
 
@@ -1031,17 +1060,15 @@ function HomePage() {
     console.log("🔵", goodTradeMetrics);
   };
 
-  const runFunc = () => {
+  const handleSingleTrade = () => {
+    // const allPrices = stockPrices.c;
+    // const allVols = stockPrices.v;
     const allPrices = hclStockPrices.c;
     const allVols = hclStockPrices.v;
-    // const allPrices = finalStockPrices;
-    // const allVols = finalStockVolumes;
-
-    testTakeTradeForBestNumbers(allPrices, allVols);
-    return;
 
     const totalTradesNeeded = parseInt(((allPrices.length * 5) / 60 / 6) * 2);
 
+    const startTime = Date.now();
     const { trades } = takeTrades(allPrices, allVols, {});
     const total = trades.length;
     const profitable = trades.filter((item) => item.result == "profit").length;
@@ -1053,7 +1080,24 @@ function HomePage() {
       `${((profitable / total) * 100).toFixed(2)}%`,
       trades
     );
-    // setTradesTaken(trades);
+
+    const endTime = Date.now();
+    const seconds = (endTime - startTime) / 1000;
+    console.log(`⏱️Time taken: ${formatSecondsToHrMinSec(seconds)}`);
+  };
+
+  const handleLoopTestTrades = () => {
+    // const allPrices = stockPrices.c;
+    // const allVols = stockPrices.v;
+    const allPrices = hclStockPrices.c;
+    const allVols = hclStockPrices.v;
+
+    const startTime = Date.now();
+    testTakeTradeForBestNumbers(allPrices, allVols);
+    const endTime = Date.now();
+
+    const seconds = (endTime - startTime) / 1000;
+    console.log(`⏱️Time taken: ${formatSecondsToHrMinSec(seconds)}`);
   };
 
   useEffect(() => {
@@ -1066,9 +1110,15 @@ function HomePage() {
         <p className={styles.title}>Prices Data</p>
       </div>
 
-      <button className="button" onClick={runFunc}>
-        Click me
-      </button>
+      <div className={styles.buttons}>
+        <button className="button" onClick={handleSingleTrade}>
+          Single run
+        </button>
+
+        <button className="button" onClick={handleLoopTestTrades}>
+          Loop test trades
+        </button>
+      </div>
 
       <div className={styles.controls}>
         <InputControl
