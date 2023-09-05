@@ -11,6 +11,8 @@ import {
   RSI as technicalIndicatorRSI,
   MACD as technicalIndicatorMACD,
   BollingerBands as technicalIndicatorBollingerBands,
+  CCI as technicalIndicatorCCI,
+  Stochastic as technicalIndicatorStochastic,
 } from "@debut/indicators";
 import {
   Chart as ChartJS,
@@ -28,7 +30,13 @@ import { Line } from "react-chartjs-2";
 import annotationPlugin from "chartjs-plugin-annotation";
 import { CrosshairPlugin, Interpolate } from "chartjs-plugin-crosshair";
 
-import { hclStockPrices, stockPrices } from "utils/constants";
+import {
+  hclStockPrices,
+  hindalCoStockPrices,
+  sbiStockPrices,
+  tataMotorsStockPrices,
+  tataSteelStockPrices,
+} from "utils/constants";
 import {
   calculateAngle,
   formatSecondsToHrMinSec,
@@ -54,9 +62,9 @@ ChartJS.register(
 );
 Interaction.modes.interpolate = Interpolate;
 
-// console.log(sma(200, stockPrices.c));
-// console.log(rsi(stockPrices.c));
-// console.log(macd(stockPrices.c));
+// console.log(sma(200, tataMotorsStockPrices.c));
+// console.log(rsi(tataMotorsStockPrices.c));
+// console.log(macd(tataMotorsStockPrices.c));
 
 let timer;
 const timeFrame = 5;
@@ -91,9 +99,9 @@ function HomePage() {
 
   const cdi1 = chartDisplayIndices[0];
   const cdi2 = chartDisplayIndices[1] - cdi1 < 50 ? 50 : chartDisplayIndices[1];
-  const finalStockPrices = stockPrices.c.slice(cdi1, cdi2);
-  const finalStockVolumes = stockPrices.v.slice(cdi1, cdi2);
-  const finalStockTimestamps = stockPrices.t
+  const finalStockPrices = tataMotorsStockPrices.c.slice(cdi1, cdi2);
+  const finalStockVolumes = tataMotorsStockPrices.v.slice(cdi1, cdi2);
+  const finalStockTimestamps = tataMotorsStockPrices.t
     .slice(cdi1, cdi2)
     .map((item) => item * 1000);
   const lowestStockPrice = finalStockPrices.reduce(
@@ -649,17 +657,23 @@ function HomePage() {
       macdSignalPeriod = 8,
       bollingerBandPeriod = 23,
       bollingerBandStdDev = 4,
+      cciPeriod = 20,
+      cciLow = -100,
+      cciHigh = 100,
+      stochasticPeriod = 14,
+      stochasticMA = 3,
+      stochasticLow = 20,
+      stochasticHigh = 80,
     }
   ) => {
-    // const smallMA = sma(smaLow, allPrices);
-    // const bigMA = sma(smaHigh, allPrices);
-    // const RSI = rsi(allPrices);
-    // const MACD = macd(allPrices);
-    // const OBV = onBalanceVolume(allPrices, allVolumes);
-
     const indicatorSmallMA = new technicalIndicatorSMA(smaLow);
     const indicatorBigMA = new technicalIndicatorSMA(smaHigh);
+    const indicatorStochastic = new technicalIndicatorStochastic(
+      stochasticPeriod,
+      stochasticMA
+    );
     const indicatorRsi = new technicalIndicatorRSI(rsiPeriod);
+    const indicatorCCI = new technicalIndicatorCCI(cciPeriod);
     const indicatorMacd = new technicalIndicatorMACD(
       macdFastPeriod,
       macdSlowPeriod,
@@ -675,8 +689,10 @@ function HomePage() {
       smallMA: [],
       bigMA: [],
       rsi: [],
+      cci: [],
       macd: [],
-      bollinderBand: [],
+      bollingerBand: [],
+      stochastic: [],
       vPs: [],
     };
 
@@ -704,15 +720,19 @@ function HomePage() {
       const smaL = indicatorSmallMA.nextValue(price);
       const smaH = indicatorBigMA.nextValue(price);
       const rsi = indicatorRsi.nextValue(price);
+      const cci = indicatorCCI.nextValue(price);
       const macd = indicatorMacd.nextValue(price);
       const bollingerBand = indicatorBollingerBands.nextValue(price);
+      const stochastic = indicatorStochastic.nextValue(price).k;
 
       indicators.lastCalculatedIndex = i;
       indicators.smallMA.push(smaL);
       indicators.bigMA.push(smaH);
       indicators.rsi.push(rsi);
+      indicators.cci.push(cci);
       indicators.macd.push(macd || {});
-      indicators.bollinderBand.push(bollingerBand || {});
+      indicators.bollingerBand.push(bollingerBand || {});
+      indicators.stochastic.push(stochastic);
     }
 
     for (let i = startTakingTradeIndex; i < allPrices.length; i++) {
@@ -772,8 +792,10 @@ function HomePage() {
           const smaL = indicatorSmallMA.nextValue(price);
           const smaH = indicatorBigMA.nextValue(price);
           const rsi = indicatorRsi.nextValue(price);
+          const cci = indicatorCCI.nextValue(price);
           const macd = indicatorMacd.nextValue(price);
-          const bollinderBand = indicatorBollingerBands.nextValue(price);
+          const bollingerBand = indicatorBollingerBands.nextValue(price);
+          const stochastic = indicatorStochastic.nextValue(price).k;
           const vps = getVPoints({
             prices: prices,
             startFrom: i - 40,
@@ -787,15 +809,19 @@ function HomePage() {
           indicators.smallMA.push(smaL);
           indicators.bigMA.push(smaH);
           indicators.rsi.push(rsi);
+          indicators.cci.push(cci);
+          indicators.stochastic.push(stochastic);
           indicators.macd.push(macd || {});
-          indicators.bollinderBand.push(bollinderBand || {});
+          indicators.bollingerBand.push(bollingerBand || {});
         }
 
         const smallMA = indicators.smallMA;
         const bigMA = indicators.bigMA;
+        const CCI = indicators.cci;
         const RSI = indicators.rsi;
         const MACD = indicators.macd;
-        const BB = indicators.bollinderBand;
+        const BB = indicators.bollingerBand;
+        const stochastic = indicators.stochastic;
         // const OBV = obvIndicator({
         //   close: prices,
         //   volume: allVolumes,
@@ -811,6 +837,7 @@ function HomePage() {
         const pricesWithTrends = getTrendEstimates(prices, i - 40);
         const trend = pricesWithTrends[i].trend;
         const rsi = RSI[i];
+        const cci = CCI[i];
 
         const targetProfit = targetProfitPercent * price;
         const stopLoss = stopLossPercent * price;
@@ -826,10 +853,22 @@ function HomePage() {
           : isSRBreakdown
           ? signalEnum.sell
           : signalEnum.hold;
+        const stochasticSignal =
+          stochastic < stochasticLow
+            ? signalEnum.sell
+            : stochastic > stochasticHigh
+            ? signalEnum.buy
+            : signalEnum.hold;
         const rsiSignal =
           rsi < rsiLow
             ? signalEnum.buy
             : rsi > rsiHigh
+            ? signalEnum.sell
+            : signalEnum.hold;
+        const cciSignal =
+          cci > cciHigh
+            ? signalEnum.buy
+            : cci < cciLow
             ? signalEnum.sell
             : signalEnum.hold;
         const macdSignal = getMacdSignal(MACD.slice(i - 2, i + 1));
@@ -843,7 +882,7 @@ function HomePage() {
             : trend == trendEnum.up
             ? signalEnum.buy
             : signalEnum.hold;
-        const bollinderBandSignal =
+        const bollingerBandSignal =
           price >= BB[i].upper
             ? signalEnum.sell
             : price <= BB[i].lower
@@ -853,13 +892,15 @@ function HomePage() {
         const netWeight =
           signalWeight[srSignal] * 2 +
           signalWeight[trendSignal] +
+          signalWeight[cciSignal] +
+          signalWeight[stochasticSignal] +
           signalWeight[rsiSignal] +
-          signalWeight[bollinderBandSignal] * 2 +
+          signalWeight[bollingerBandSignal] * 3 +
           signalWeight[macdSignal] * 2 +
           signalWeight[smaSignal] * 2;
 
-        const isBuySignal = netWeight >= 3;
-        const isSellSignal = netWeight <= -3;
+        const isBuySignal = netWeight >= 4;
+        const isSellSignal = netWeight <= -4;
 
         const analytic = {
           rsi: rsiSignal,
@@ -1061,34 +1102,60 @@ function HomePage() {
   };
 
   const handleSingleTrade = () => {
-    // const allPrices = stockPrices.c;
-    // const allVols = stockPrices.v;
-    const allPrices = hclStockPrices.c;
-    const allVols = hclStockPrices.v;
+    const prices = [
+      {
+        name: "Tata motors",
+        ...tataMotorsStockPrices,
+      },
+      {
+        name: "HCL tech",
+        ...hclStockPrices,
+      },
+      {
+        name: "Tata steel",
+        ...tataSteelStockPrices,
+      },
+      {
+        name: "SBI",
+        ...sbiStockPrices,
+      },
+      {
+        name: "Hindal co industries",
+        ...hindalCoStockPrices,
+      },
+    ];
 
-    const totalTradesNeeded = parseInt(((allPrices.length * 5) / 60 / 6) * 2);
+    prices.forEach((item) => {
+      const allPrices = item.c;
+      const allVols = item.v;
 
-    const startTime = Date.now();
-    const { trades } = takeTrades(allPrices, allVols, {});
-    const total = trades.length;
-    const profitable = trades.filter((item) => item.result == "profit").length;
+      const totalTradesNeeded = parseInt(((allPrices.length * 5) / 60 / 6) * 2);
 
-    console.log(
-      `Needed trades: ${totalTradesNeeded}`,
-      `Takes trades: ${total}`,
-      `Profitable trades: ${profitable}`,
-      `${((profitable / total) * 100).toFixed(2)}%`,
-      trades
-    );
+      const startTime = Date.now();
+      const { trades } = takeTrades(allPrices, allVols, {});
+      const total = trades.length;
+      const profitable = trades.filter(
+        (item) => item.result == "profit"
+      ).length;
 
-    const endTime = Date.now();
-    const seconds = (endTime - startTime) / 1000;
-    console.log(`⏱️Time taken: ${formatSecondsToHrMinSec(seconds)}`);
+      console.log(
+        `🔵${item.name} | ${((profitable / total) * 100).toFixed(
+          2
+        )}% | Needed trades: ${totalTradesNeeded}`,
+        `Takes trades: ${total}`,
+        `Profitable trades: ${profitable}`,
+        trades
+      );
+
+      const endTime = Date.now();
+      const seconds = (endTime - startTime) / 1000;
+      console.log(`⏱️Time taken: ${formatSecondsToHrMinSec(seconds)}`);
+    });
   };
 
   const handleLoopTestTrades = () => {
-    // const allPrices = stockPrices.c;
-    // const allVols = stockPrices.v;
+    // const allPrices = tataMotorsStockPrices.c;
+    // const allVols = tataMotorsStockPrices.v;
     const allPrices = hclStockPrices.c;
     const allVols = hclStockPrices.v;
 
