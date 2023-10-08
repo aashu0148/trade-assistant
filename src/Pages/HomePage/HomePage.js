@@ -1,11 +1,5 @@
 import React, { useEffect, useState } from "react";
-// import { macd, rsi, sma, onBalanceVolume } from "indicatorts";
-import {
-  sma as smaIndicator,
-  rsi as rsiIndicator,
-  macd as macdIndicator,
-  obv as obvIndicator,
-} from "technicalindicators";
+import { sma as smaIndicator } from "technicalindicators";
 import {
   SMA as technicalIndicatorSMA,
   RSI as technicalIndicatorRSI,
@@ -13,7 +7,11 @@ import {
   BollingerBands as technicalIndicatorBollingerBands,
   CCI as technicalIndicatorCCI,
   Stochastic as technicalIndicatorStochastic,
+  PSAR as technicalIndicatorPSAR,
+  SuperTrend as technicalIndicatorSuperTrend,
 } from "@debut/indicators";
+import "chartjs-chart-financial";
+import { IndicatorsNormalized } from "@ixjb94/indicators/dist";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -26,17 +24,15 @@ import {
   Interaction,
   Filler,
 } from "chart.js";
+import "chartjs-adapter-luxon";
+import ZoomPlugin from "chartjs-plugin-zoom";
 import { Line } from "react-chartjs-2";
 import annotationPlugin from "chartjs-plugin-annotation";
 import { CrosshairPlugin, Interpolate } from "chartjs-plugin-crosshair";
 
-import {
-  hclStockPrices,
-  hindalCoStockPrices,
-  sbiStockPrices,
-  tataMotorsStockPrices,
-  tataSteelStockPrices,
-} from "utils/constants";
+import InputControl from "../../Components/InputControl/InputControl";
+
+// import stockData from "utils/stockData";
 import {
   calculateAngle,
   formatSecondsToHrMinSec,
@@ -44,10 +40,11 @@ import {
   getRandomNumber,
   nearlyEquateNums,
 } from "utils/util";
+import { Range, takeTrades } from "utils/tradeUtil";
 
 import styles from "./HomePage.module.scss";
-import InputControl from "../../Components/InputControl/InputControl";
 
+const IXJIndicators = new IndicatorsNormalized();
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -58,7 +55,8 @@ ChartJS.register(
   Legend,
   Filler,
   annotationPlugin,
-  CrosshairPlugin
+  CrosshairPlugin,
+  ZoomPlugin
 );
 Interaction.modes.interpolate = Interpolate;
 
@@ -92,18 +90,52 @@ const signalWeight = {
   [signalEnum.hold]: 0,
   [signalEnum.buy]: 1,
 };
+const indicatorsWeightEnum = {
+  bollingerBand: 3,
+  movingAvg: 1,
+  sr: 2,
+  macd: 1,
+  rsi: 1,
+  cci: 1,
+  trend: 1,
+  stochastic: 1,
+  psar: 1,
+  superTrend: 1,
+  obv: 1,
+  vwap: 1,
+  williamR: 1,
+  mfi: 1,
+  vPs: 1,
+};
 
 function HomePage() {
   const [chartDisplayIndices, setChartDisplayIndices] = useState([0, 200]);
   const [tradesTaken, setTradesTaken] = useState([]);
 
+  const [stockData, setStockData] = useState({});
+
+  const stock = stockData.HDFCLIFE || {
+    c: [],
+    t: [],
+    v: [],
+    o: [],
+    h: [],
+    l: [],
+  };
   const cdi1 = chartDisplayIndices[0];
   const cdi2 = chartDisplayIndices[1] - cdi1 < 50 ? 50 : chartDisplayIndices[1];
-  const finalStockPrices = tataMotorsStockPrices.c.slice(cdi1, cdi2);
-  const finalStockVolumes = tataMotorsStockPrices.v.slice(cdi1, cdi2);
-  const finalStockTimestamps = tataMotorsStockPrices.t
-    .slice(cdi1, cdi2)
-    .map((item) => item * 1000);
+  const finalStockData = {
+    t: stock.t.slice(cdi1, cdi2),
+    h: stock.h.slice(cdi1, cdi2),
+    l: stock.l.slice(cdi1, cdi2),
+    o: stock.o.slice(cdi1, cdi2),
+    c: stock.c.slice(cdi1, cdi2),
+    v: stock.v.slice(cdi1, cdi2),
+  };
+  const finalStockPrices = finalStockData.c;
+  const finalStockVolumes = finalStockData.v;
+  const finalStockTimestamps = finalStockData.t.map((item) => item * 1000);
+
   const lowestStockPrice = finalStockPrices.reduce(
     (acc, curr) => (curr < acc ? curr : acc),
     Number.MAX_SAFE_INTEGER
@@ -113,59 +145,25 @@ function HomePage() {
     0
   );
 
-  const calculateIndicators = (closingPrices = []) => {
-    const smaPeriod = 14; // Period for SMA and RSI
-    const macdFastPeriod = 19;
-    const macdSlowPeriod = 30;
-    const macdSignalPeriod = 8;
-
-    const sma = new technicalIndicatorSMA(smaPeriod);
-    const rsi = new technicalIndicatorRSI(smaPeriod);
-    const macd = new technicalIndicatorMACD(
-      macdFastPeriod,
-      macdSlowPeriod,
-      macdSignalPeriod
-    );
-
-    const indicators = [];
-
-    for (const price of closingPrices) {
-      const smaValue = sma.nextValue(price);
-      const rsiValue = rsi.nextValue(price);
-      const macdValues = macd.nextValue(price);
-
-      indicators.push({
-        price,
-        sma: smaValue,
-        rsi: rsiValue,
-        macd: macdValues?.macd,
-        signal: macdValues?.signal,
-        histogram: macdValues?.histogram,
-      });
-    }
-
-    return indicators;
+  const debounce = (func, time = 400) => {
+    clearTimeout(timer);
+    timer = setTimeout(func, time);
   };
 
-  const calculatedSma = smaIndicator({
-    period: 14,
-    values: finalStockPrices,
-  });
-  const calculatedSma200 = smaIndicator({
-    period: 200,
-    values: finalStockPrices,
-  });
-  const calculatedRsi = calculateIndicators(finalStockPrices).map(
-    (item) => item.rsi
-  );
-  const calculatedMacd = calculateIndicators(finalStockPrices).map((item) => ({
-    macd: item.macd,
-    signal: item.signal,
-  }));
+  const fetchStockData = async () => {
+    const res = await fetch(
+      `https://trade-p129.onrender.com/trade/recent-data`,
+      {
+        headers: {
+          Authorization:
+            "$2b$05$.X7vV5TJ3eQPoAGoOGnHH.K6ROXzZ7JzDWqkdj/1JKbtTSlLr7xt2",
+        },
+      }
+    );
+    const json = await res.json();
+    if (!json?.success || !json?.data) return;
 
-  const debounce = (func) => {
-    clearTimeout(timer);
-    timer = setTimeout(func, 300);
+    setStockData(json.data);
   };
 
   const timesPricesCrossedRange = (prices = [], rangeMin, rangeMax) => {
@@ -254,6 +252,12 @@ function HomePage() {
           currPoint.value,
           allowedDx
         );
+        // console.log(
+        //   startPoint.value,
+        //   currPoint.value,
+        //   isNearlyEqual,
+        //   allowedDx
+        // );
         if (!isNearlyEqual) continue;
 
         const rangePrices = prices.slice(startPoint.index, currPoint.index);
@@ -325,6 +329,71 @@ function HomePage() {
     }
 
     return finalRanges;
+  };
+
+  const getCandleTrendEstimate = (
+    index,
+    priceData = {},
+    trendCheckingLastFewCandles = 8
+  ) => {
+    const arr = priceData.c
+      .slice(index - trendCheckingLastFewCandles, index + 1)
+      .map((_e, i) => {
+        const idx = index - trendCheckingLastFewCandles + i;
+
+        return {
+          index: idx,
+          c: priceData.c[idx],
+          o: priceData.o[idx],
+          h: priceData.h[idx],
+          l: priceData.l[idx],
+        };
+      });
+
+    const currPrice = priceData.c[index];
+    const point3OfPrice = (0.35 / 100) * currPrice;
+    const point1OfPrice = (0.15 / 100) * currPrice;
+    const avgPrice = arr.reduce((acc, curr) => acc + curr.c, 0) / arr.length;
+    let rangeCandles = 0;
+    for (let i = 0; i < arr.length; ++i) {
+      const isNearlyEq = nearlyEquateNums(avgPrice, arr[i].c, point3OfPrice);
+
+      if (isNearlyEq) rangeCandles++;
+    }
+
+    if (arr.length - rangeCandles < 3) return trendEnum.range;
+
+    let redCandlesCount = 0,
+      greenCandlesCount = 0;
+
+    for (let i = 0; i < arr.length; ++i) {
+      const diff = arr[i].c - arr[i].o;
+      if (Math.abs(diff) < point1OfPrice) continue;
+
+      if (diff > 0) greenCandlesCount++;
+      else if (diff < 0) redCandlesCount++;
+    }
+
+    if (redCandlesCount < 2 && greenCandlesCount < 2) return trendEnum.range;
+
+    const longPeriodArr = priceData.c.slice(
+      index - trendCheckingLastFewCandles * 3,
+      index + 1
+    );
+    const longPeriodAvgPrice =
+      longPeriodArr.reduce((acc, curr) => acc + curr, 0) / longPeriodArr.length;
+
+    if (
+      redCandlesCount - greenCandlesCount > 1 &&
+      currPrice < longPeriodAvgPrice
+    )
+      return trendEnum.down;
+    else if (
+      greenCandlesCount - redCandlesCount > 1 &&
+      currPrice > longPeriodAvgPrice
+    )
+      return trendEnum.up;
+    else return trendEnum.range;
   };
 
   const getTrendEstimates = (prices = [], startCheckFrom = 12) => {
@@ -403,7 +472,24 @@ function HomePage() {
 
   const vps = getVPoints({ prices: finalStockPrices });
   const ranges = getSupportResistanceRangesFromVPoints(vps, finalStockPrices);
-  const pricesWithTrends = getTrendEstimates(finalStockPrices);
+
+  // let vps, ranges;
+  // for (let i = 0; i < finalStockPrices.length; ++i) {
+  //   const { vPoints, ranges: rngs } = rangeObj.nextRangeValue({
+  //     price: finalStockPrices[i],
+  //   });
+  //   vps = vPoints;
+  //   ranges = rngs;
+  // }
+  // console.log(ranges);
+
+  // const pricesWithTrends = getTrendEstimates(finalStockPrices);
+  const pricesWithTrends = finalStockData.c.map((item, i) => {
+    if (i < 10) return { index: i, trend: trendEnum.range };
+
+    const trend = getCandleTrendEstimate(i, finalStockData);
+    return { index: i, trend };
+  });
   const trends = groupByTrends(pricesWithTrends);
 
   const pricesOptions = {
@@ -549,547 +635,82 @@ function HomePage() {
     pricesOptions,
   };
 
-  const rsiData = {
-    labels: finalStockTimestamps.map((t) =>
-      new Date(t).toLocaleTimeString("en-in").split(":").slice(0, 2).join(":")
-    ),
-    datasets: [
-      {
-        label: "RSI",
-        data: calculatedRsi,
-        borderColor: "purple",
-        pointRadius: 0,
-        borderWidth: 1,
-      },
-    ],
-  };
+  const testTakeTradeForBestNumbers = async (priceData, symbol) => {
+    function getAllCombinations(arr) {
+      function helper(start, current) {
+        result.push(current.join(""));
 
-  const macdData = {
-    labels: finalStockTimestamps.map((t) =>
-      new Date(t).toLocaleTimeString("en-in").split(":").slice(0, 2).join(":")
-    ),
-    datasets: [
-      {
-        label: "Signal line",
-        data: calculatedMacd.map((item) => item.signal),
-        borderColor: "red",
-        pointRadius: 0,
-        borderWidth: 1,
-      },
-      {
-        label: "MACD line",
-        data: calculatedMacd.map((item) => item.macd),
-        borderColor: "green",
-        pointRadius: 0,
-        borderWidth: 1,
-      },
-    ],
-  };
-
-  const getMacdSignal = (macd) => {
-    if (
-      !macd?.length ||
-      macd.length > 3 ||
-      macd.some((item) => item.macd == undefined || item.signal == undefined)
-    )
-      return signalEnum.hold;
-
-    if (macd[0].macd < 0.015 && macd[0].macd > -0.015) return signalEnum.hold;
-
-    let signal = signalEnum.hold,
-      s = 0;
-    for (let i = 0; i < macd.length; ++i) {
-      const d = macd[i].macd - macd[i].signal;
-
-      if (d > 0) {
-        if (s == -1) signal = signalEnum.buy;
-
-        s = 1;
-      } else if (d < 0) {
-        if (s == 1) signal = signalEnum.sell;
-
-        s = -1;
+        for (let i = start; i < arr.length; i++) {
+          current.push(arr[i]);
+          helper(i + 1, current);
+          current.pop();
+        }
       }
+
+      const result = [];
+      helper(0, []);
+      return result;
     }
-
-    return signal;
-  };
-
-  const getSmaCrossedSignal = ({ smaLow = [], smaHigh = [] }) => {
-    if (
-      !smaLow?.length ||
-      !smaHigh?.length ||
-      smaLow.length > 3 ||
-      smaHigh.length > 3
-    )
-      return signalEnum.hold;
-
-    let signal = signalEnum.hold,
-      s = 0;
-    for (let i = 0; i < smaLow.length; ++i) {
-      const d = smaLow[i] - smaHigh[i];
-
-      if (d > 0) {
-        if (s == -1) signal = signalEnum.buy;
-
-        s = 1;
-      } else if (d < 0) {
-        if (s == 1) signal = signalEnum.sell;
-
-        s = -1;
-      }
-    }
-
-    return signal;
-  };
-
-  const takeTrades = (
-    allPrices,
-    allVolumes = [],
-    {
-      rsiLow = 48,
-      rsiHigh = 63,
-      smaLow = 18,
-      smaHigh = 150,
-      rsiPeriod = 8,
-      macdFastPeriod = 14,
-      macdSlowPeriod = 24,
-      macdSignalPeriod = 8,
-      bollingerBandPeriod = 23,
-      bollingerBandStdDev = 4,
-      cciPeriod = 20,
-      cciLow = -100,
-      cciHigh = 100,
-      stochasticPeriod = 14,
-      stochasticMA = 3,
-      stochasticLow = 20,
-      stochasticHigh = 80,
-    }
-  ) => {
-    const indicatorSmallMA = new technicalIndicatorSMA(smaLow);
-    const indicatorBigMA = new technicalIndicatorSMA(smaHigh);
-    const indicatorStochastic = new technicalIndicatorStochastic(
-      stochasticPeriod,
-      stochasticMA
-    );
-    const indicatorRsi = new technicalIndicatorRSI(rsiPeriod);
-    const indicatorCCI = new technicalIndicatorCCI(cciPeriod);
-    const indicatorMacd = new technicalIndicatorMACD(
-      macdFastPeriod,
-      macdSlowPeriod,
-      macdSignalPeriod
-    );
-    const indicatorBollingerBands = new technicalIndicatorBollingerBands(
-      bollingerBandPeriod,
-      bollingerBandStdDev
-    );
-
     const indicators = {
-      lastCalculatedIndex: 0,
-      smallMA: [],
-      bigMA: [],
-      rsi: [],
-      cci: [],
-      macd: [],
-      bollingerBand: [],
-      stochastic: [],
-      vPs: [],
+      br: false,
+      rsi: false,
+      macd: false,
+      sma: false,
+      mfi: false,
+      stochastic: false,
+      willR: false,
+      vwap: false,
+      cci: false,
+      // psar: false,
     };
-
-    let isTradeTaken = false,
-      targetProfitPercent = 1.4 / 100,
-      stopLossPercent = 0.7 / 100,
-      trade = {},
-      trades = [];
-
-    let analytics = {
-      signals: [],
-      noOfBreakouts: 0,
-      noOfBreakdowns: 0,
-    };
-
-    const startTakingTradeIndex = 200;
-
-    const vps = getVPoints({
-      prices: allPrices.slice(0, startTakingTradeIndex),
-    });
-    indicators.vPs = [...vps];
-    for (let i = 0; i < startTakingTradeIndex; ++i) {
-      const price = allPrices[i];
-
-      const smaL = indicatorSmallMA.nextValue(price);
-      const smaH = indicatorBigMA.nextValue(price);
-      const rsi = indicatorRsi.nextValue(price);
-      const cci = indicatorCCI.nextValue(price);
-      const macd = indicatorMacd.nextValue(price);
-      const bollingerBand = indicatorBollingerBands.nextValue(price);
-      const stochastic = indicatorStochastic.nextValue(price).k;
-
-      indicators.lastCalculatedIndex = i;
-      indicators.smallMA.push(smaL);
-      indicators.bigMA.push(smaH);
-      indicators.rsi.push(rsi);
-      indicators.cci.push(cci);
-      indicators.macd.push(macd || {});
-      indicators.bollingerBand.push(bollingerBand || {});
-      indicators.stochastic.push(stochastic);
-    }
-
-    for (let i = startTakingTradeIndex; i < allPrices.length; i++) {
-      const prices = allPrices.slice(0, i + 1);
-
-      const prevPrice = prices[i - 1];
-      const price = prices[i];
-
-      if (isTradeTaken) {
-        if (trade.type == signalEnum.buy) {
-          if (price > trade.target) {
-            trades.push({
-              result: "profit",
-              profit: trade.target - trade.startPrice,
-              endPrice: price,
-              endIndex: i,
-              ...trade,
-            });
-            isTradeTaken = false;
-            i = trade.startIndex;
-          } else if (price < trade.sl) {
-            trades.push({
-              result: "loss",
-              profit: trade.sl - trade.startPrice,
-              endPrice: price,
-              endIndex: i,
-              ...trade,
-            });
-            isTradeTaken = false;
-            i = trade.startIndex;
-          }
-        } else {
-          if (price < trade.target) {
-            trades.push({
-              result: "profit",
-              profit: trade.startPrice - trade.target,
-              endPrice: price,
-              endIndex: i,
-              ...trade,
-            });
-            isTradeTaken = false;
-            i = trade.startIndex;
-          } else if (price > trade.sl) {
-            trades.push({
-              result: "loss",
-              profit: trade.startPrice - trade.sl,
-              endPrice: price,
-              endIndex: i,
-              ...trade,
-            });
-            isTradeTaken = false;
-            i = trade.startIndex;
-          }
-        }
-      } else {
-        if (indicators.lastCalculatedIndex < i) {
-          const smaL = indicatorSmallMA.nextValue(price);
-          const smaH = indicatorBigMA.nextValue(price);
-          const rsi = indicatorRsi.nextValue(price);
-          const cci = indicatorCCI.nextValue(price);
-          const macd = indicatorMacd.nextValue(price);
-          const bollingerBand = indicatorBollingerBands.nextValue(price);
-          const stochastic = indicatorStochastic.nextValue(price).k;
-          const vps = getVPoints({
-            prices: prices,
-            startFrom: i - 40,
-            previousOutput: indicators.vPs.filter(
-              (item) => item.index < i - 40
-            ),
-          });
-
-          indicators.lastCalculatedIndex = i;
-          indicators.vPs = vps;
-          indicators.smallMA.push(smaL);
-          indicators.bigMA.push(smaH);
-          indicators.rsi.push(rsi);
-          indicators.cci.push(cci);
-          indicators.stochastic.push(stochastic);
-          indicators.macd.push(macd || {});
-          indicators.bollingerBand.push(bollingerBand || {});
-        }
-
-        const smallMA = indicators.smallMA;
-        const bigMA = indicators.bigMA;
-        const CCI = indicators.cci;
-        const RSI = indicators.rsi;
-        const MACD = indicators.macd;
-        const BB = indicators.bollingerBand;
-        const stochastic = indicators.stochastic;
-        // const OBV = obvIndicator({
-        //   close: prices,
-        //   volume: allVolumes,
-        // });
-
-        const ranges = getSupportResistanceRangesFromVPoints(
-          indicators.vPs,
-          prices
-        );
-        const strongSupportResistances = ranges.filter(
-          (item) => item.stillStrong
-        );
-        const pricesWithTrends = getTrendEstimates(prices, i - 40);
-        const trend = pricesWithTrends[i].trend;
-        const rsi = RSI[i];
-        const cci = CCI[i];
-
-        const targetProfit = targetProfitPercent * price;
-        const stopLoss = stopLossPercent * price;
-
-        const isSRBreakout = strongSupportResistances.some(
-          (item) => item.max < price && item.max > prevPrice
-        );
-        const isSRBreakdown = strongSupportResistances.some(
-          (item) => item.min > price && item.min < prevPrice
-        );
-        const srSignal = isSRBreakout
-          ? signalEnum.buy
-          : isSRBreakdown
-          ? signalEnum.sell
-          : signalEnum.hold;
-        const stochasticSignal =
-          stochastic < stochasticLow
-            ? signalEnum.sell
-            : stochastic > stochasticHigh
-            ? signalEnum.buy
-            : signalEnum.hold;
-        const rsiSignal =
-          rsi < rsiLow
-            ? signalEnum.buy
-            : rsi > rsiHigh
-            ? signalEnum.sell
-            : signalEnum.hold;
-        const cciSignal =
-          cci > cciHigh
-            ? signalEnum.buy
-            : cci < cciLow
-            ? signalEnum.sell
-            : signalEnum.hold;
-        const macdSignal = getMacdSignal(MACD.slice(i - 2, i + 1));
-        const smaSignal = getSmaCrossedSignal({
-          smaLow: smallMA.slice(i - 2, i + 1),
-          smaHigh: bigMA.slice(i - 2, i + 1),
-        });
-        const trendSignal =
-          trend == trendEnum.down
-            ? signalEnum.sell
-            : trend == trendEnum.up
-            ? signalEnum.buy
-            : signalEnum.hold;
-        const bollingerBandSignal =
-          price >= BB[i].upper
-            ? signalEnum.sell
-            : price <= BB[i].lower
-            ? signalEnum.buy
-            : signalEnum.hold;
-
-        const netWeight =
-          signalWeight[srSignal] * 2 +
-          signalWeight[trendSignal] +
-          signalWeight[cciSignal] +
-          signalWeight[stochasticSignal] +
-          signalWeight[rsiSignal] +
-          signalWeight[bollingerBandSignal] * 3 +
-          signalWeight[macdSignal] * 2 +
-          signalWeight[smaSignal] * 2;
-
-        const isBuySignal = netWeight >= 4;
-        const isSellSignal = netWeight <= -4;
-
-        const analytic = {
-          rsi: rsiSignal,
-          macd: macdSignal,
-          macdVal: MACD.slice(i - 2, i + 1),
-          sr: srSignal,
-          sma: smaSignal,
-          netSignal: isBuySignal
-            ? signalEnum.buy
-            : isSellSignal
-            ? signalEnum.sell
-            : signalEnum.hold,
-          index: i,
-          price,
-        };
-        analytics.signals.push({
-          ...analytic,
-        });
-
-        if (isBuySignal) {
-          // neglect trade if last trade is recent and type of BUY
-          const lastTrade = trades.length ? trades[trades.length - 1] : {};
-          if (lastTrade?.type) {
-            if (
-              lastTrade.type == signalEnum.buy &&
-              i - lastTrade.startIndex < 4
-            )
-              continue;
-          }
-
-          let nearestResistance;
-          for (let j = 0; j < strongSupportResistances.length; ++j) {
-            const range = strongSupportResistances[j];
-            if (range.max < price) continue;
-
-            // if price is in between a range
-            if (range.min < price) {
-              nearestResistance = range.max;
-              break;
-            }
-
-            if (!nearestResistance) nearestResistance = range.min;
-
-            if (range.min < nearestResistance) nearestResistance = range.min;
-          }
-
-          const possibleProfit = nearestResistance
-            ? nearestResistance - price
-            : targetProfit;
-
-          if (possibleProfit < targetProfit) continue;
-
-          isTradeTaken = true;
-          trade = {
-            startIndex: i,
-            startPrice: price,
-            type: signalEnum.buy,
-            target:
-              possibleProfit > targetProfit
-                ? price + targetProfit
-                : price + possibleProfit,
-            sl: price - stopLoss,
-            analytics: analytic,
-            nearestResistance,
-          };
-        } else if (isSellSignal) {
-          // neglect trade if last trade is recent and type of SELL
-          const lastTrade = trades.length ? trades[trades.length - 1] : {};
-          if (lastTrade?.type) {
-            if (
-              lastTrade.type == signalEnum.sell &&
-              i - lastTrade.startIndex < 4
-            )
-              continue;
-          }
-
-          let nearestSupport;
-          for (let j = 0; j < strongSupportResistances.length; ++j) {
-            const range = strongSupportResistances[j];
-            if (range.min > price) continue;
-
-            // if price is in between a range
-            if (range.max > price) {
-              nearestSupport = range.min;
-              break;
-            }
-
-            if (!nearestSupport) nearestSupport = range.max;
-
-            if (range.max < nearestSupport) nearestSupport = range.max;
-          }
-
-          const possibleProfit = nearestSupport
-            ? price - nearestSupport
-            : targetProfit;
-
-          if (possibleProfit < targetProfit) continue;
-
-          isTradeTaken = true;
-          trade = {
-            startIndex: i,
-            startPrice: price,
-            type: signalEnum.sell,
-            target:
-              possibleProfit > targetProfit
-                ? price - targetProfit
-                : price - possibleProfit,
-            sl: price + stopLoss,
-            analytics: analytic,
-            nearestSupport,
-          };
-        }
-      }
-    }
-
-    return { trades, analytics };
-  };
-
-  const testTakeTradeForBestNumbers = (allPrices, allVols) => {
-    //     {
-    //     "profitPercent": 52.38095238095239,
-    //     "macdFastPeriod": 14,
-    //     "macdSlowPeriod": 25,
-    //     "rl": 48,
-    //     "rh": 63,
-    //     "sl": 18,
-    //     "sh": 150,
-    //     "total": 21,
-    //     "profitable": 11,
-    //     "lossMaking": 10
-    // }
-    //    {
-    //     "profitPercent": 55.55555555555556,
-    //     "bollingerBandPeriod": 23,
-    //     "bollingerBandStdDev": 4,
-    //     "total": 27,
-    //     "profitable": 15,
-    //     "lossMaking": 12
-    // }
+    const indicatorCombinations = getAllCombinations(
+      Object.keys(indicators).map((item) => item + "_")
+    ).filter((item) => item.split("_").length < 6);
 
     let goodTradeMetrics = [];
 
-    for (let ri = 46, rj = 62; ri < 49; ++ri, ++rj) {
-      for (let sl = 18, sh = 150; sl < 22; ++sl, sh += 2) {
-        for (let macdFP = 14; macdFP < 16; ++macdFP) {
-          for (let macdSP = 23; macdSP < 25; ++macdSP) {
-            for (let bbP = 22; bbP < 25; ++bbP) {
-              const { trades, analytics } = takeTrades(allPrices, allVols, {
-                rsiLow: ri,
-                rsiHigh: rj,
-                smaLow: sl,
-                smaHigh: sh,
-                macdFastPeriod: macdFP,
-                macdSlowPeriod: macdSP,
-                bollingerBandPeriod: bbP,
-                // bollingerBandStdDev: bbStdDiv,
-              });
+    for (let i = 0; i < indicatorCombinations.length; ++i) {
+      for (let vpOffset = 5; vpOffset < 15; vpOffset += 3) {
+        console.log(symbol);
+        const indicators = indicatorCombinations[i]
+          .split("_")
+          .filter((item) => item);
 
-              const total = trades.length;
-              const profits = trades.filter(
-                (item) => item.result == "profit"
-              ).length;
+        const indicatorsObj = {};
+        indicators.forEach((item) => (indicatorsObj[item] = true));
 
-              const profitPercent = (profits / total) * 100;
+        const { trades } = await takeTrades(priceData, {
+          additionalIndicators: indicatorsObj,
+          vPointOffset: vpOffset,
+        });
 
-              if (profitPercent > 52) {
-                goodTradeMetrics.push({
-                  profitPercent,
-                  bollingerBandPeriod: bbP,
-                  // bollingerBandStdDev: bbStdDiv,
-                  macdFastPeriod: macdFP,
-                  macdSlowPeriod: macdSP,
-                  rl: ri,
-                  rh: rj,
-                  sl,
-                  sh,
-                  total,
-                  profitable: profits,
-                  lossMaking: total - profits,
-                });
-              }
+        if (!trades.length) {
+          console.log("No trades!");
+          continue;
+        }
 
-              console.log(
-                `ri:${ri}, rj:${rj}, sl:${sl}, macdFP:${macdFP}, t:${total} P-P:${parseInt(
-                  profitPercent
-                )}`
-              );
-            }
-          }
+        const total = trades.length;
+        const profits = trades.filter((item) => item.result == "profit").length;
+
+        const profitPercent = (profits / total) * 100;
+
+        if (profitPercent > 50 && total > 8) {
+          goodTradeMetrics.push({
+            profitPercent,
+            indicatorsObj,
+            vpOffset,
+            total,
+            profitable: profits,
+            lossMaking: total - profits,
+          });
+
+          console.log(
+            `🟡P-P:${parseInt(
+              profitPercent
+            )}, vp-o:${vpOffset}, t:${total}, indicators:${Object.keys(
+              indicatorsObj
+            ).join(" | ")}`
+          );
         }
       }
     }
@@ -1098,78 +719,297 @@ function HomePage() {
       a.total > b.total ? -1 : 1
     );
 
-    console.log("🔵", goodTradeMetrics);
+    console.log(`🔵 Trades for: ${symbol}`, structuredClone(goodTradeMetrics));
+    localStorage.setItem(`${symbol}_trades`, JSON.stringify(goodTradeMetrics));
   };
 
-  const handleSingleTrade = () => {
-    const prices = [
+  const handleSingleTrade = async () => {
+    const stocks = [
       {
         name: "Tata motors",
-        ...tataMotorsStockPrices,
+        ...stockData.TATAMOTORS,
       },
-      {
-        name: "HCL tech",
-        ...hclStockPrices,
-      },
-      {
-        name: "Tata steel",
-        ...tataSteelStockPrices,
-      },
-      {
-        name: "SBI",
-        ...sbiStockPrices,
-      },
-      {
-        name: "Hindal co industries",
-        ...hindalCoStockPrices,
-      },
+      // {
+      //   name: "Tata steel",
+      //   ...stockData.TATASTEEL,
+      // },
+      // {
+      //   name: "INDIANB",
+      //   ...stockData.INDIANB,
+      // },
+      // {
+      //   name: "Bhel",
+      //   ...stockData.BHEL,
+      // },
     ];
 
-    prices.forEach((item) => {
-      const allPrices = item.c;
-      const allVols = item.v;
+    const tradeResults = [];
+    for (let i = 0; i < stocks.length; ++i) {
+      const item = stocks[i];
 
-      const totalTradesNeeded = parseInt(((allPrices.length * 5) / 60 / 6) * 2);
+      const days = parseInt((item.c.length * 5) / 60 / 6);
 
+      console.log(`🟡 Taking trade for: ${item.name}`);
       const startTime = Date.now();
-      const { trades } = takeTrades(allPrices, allVols, {});
+      const { trades } = await takeTrades(item, {});
       const total = trades.length;
       const profitable = trades.filter(
         (item) => item.result == "profit"
       ).length;
 
-      console.log(
-        `🔵${item.name} | ${((profitable / total) * 100).toFixed(
-          2
-        )}% | Needed trades: ${totalTradesNeeded}`,
-        `Takes trades: ${total}`,
-        `Profitable trades: ${profitable}`,
-        trades
-      );
-
       const endTime = Date.now();
       const seconds = (endTime - startTime) / 1000;
-      console.log(`⏱️Time taken: ${formatSecondsToHrMinSec(seconds)}`);
-    });
+      const trade = {
+        stock: item.name,
+        "profit percent 💸": `${((profitable / total) * 100).toFixed(2)}%`,
+        days,
+        Trades: total,
+        ProfitMaking: profitable,
+        "loss making": total - profitable,
+        trades: trades,
+        "⏱️Time taken": seconds + "s",
+      };
+
+      tradeResults.push(trade);
+    }
+
+    console.table(tradeResults);
   };
 
-  const handleLoopTestTrades = () => {
-    // const allPrices = tataMotorsStockPrices.c;
-    // const allVols = tataMotorsStockPrices.v;
-    const allPrices = hclStockPrices.c;
-    const allVols = hclStockPrices.v;
+  const handleLoopTestTrades = async () => {
+    const stockNames = [
+      "LAOPALA",
+      "LATENTVIEW",
+      "BHEL",
+      "JSWENERGY",
+      "AMBUJACEM",
+      "VBL",
+      "ZEEL",
+      "INDHOTEL",
+      "INDIANB",
+      "SUNTV",
+      "DLF",
+      "OIL",
+      "JINDALSAW",
+      "ADANIPOWER",
+      "RBLBANK",
+      "BSE",
+    ];
 
-    const startTime = Date.now();
-    testTakeTradeForBestNumbers(allPrices, allVols);
-    const endTime = Date.now();
+    for (let i = 0; i < stockNames.length; ++i) {
+      const name = stockNames[i];
+      const sData = stockData[name];
 
-    const seconds = (endTime - startTime) / 1000;
-    console.log(`⏱️Time taken: ${formatSecondsToHrMinSec(seconds)}`);
+      const startTime = Date.now();
+      await testTakeTradeForBestNumbers(sData, name);
+      const endTime = Date.now();
+
+      const seconds = (endTime - startTime) / 1000;
+      console.log(`⏱️Time taken: ${formatSecondsToHrMinSec(seconds)}`);
+    }
+  };
+
+  const renderChart = async () => {
+    const chartElem = document.querySelector("#chart");
+    chartElem.innerHTML = "";
+
+    const { createChart } = window.LightweightCharts;
+
+    const chart = createChart(chartElem, {
+      width: 1250,
+      height: 650,
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: true,
+      },
+      pane: 0,
+    });
+
+    const candleSeries = chart.addCandlestickSeries({
+      pane: 0,
+      upColor: "#26a69a",
+      downColor: "#ef5350",
+      borderVisible: false,
+      wickUpColor: "#26a69a",
+      wickDownColor: "#ef5350",
+    });
+    candleSeries.setData(
+      finalStockData.c.map((item, i) => ({
+        time: finalStockData.t[i],
+        high: finalStockData.h[i],
+        low: finalStockData.l[i],
+        open: finalStockData.o[i],
+        close: finalStockData.c[i],
+      }))
+    );
+
+    // chart.addCustomSeries(0,{})
+
+    const colors = ["#a6b8ff", "#ffd4a6", "#e0a6ff", "#ffa6e0"];
+
+    // trade Marks
+    const {
+      trades,
+      indicators = {},
+      analytics,
+    } = await takeTrades(
+      finalStockData,
+      {
+        additionalIndicators: {
+          br: true,
+          bollinger: true,
+          macd: true,
+          sma: true,
+        },
+        decisionMakingPoints: 3,
+      },
+      false
+    );
+
+    console.log(trades, indicators);
+    trades.forEach((trade, i) => {
+      const color = colors[i % colors.length];
+      const line = chart.addLineSeries({
+        pane: 0,
+        color: trade.type == "buy" ? "green" : "red",
+        lineWidth: 5,
+      });
+
+      line.setData([
+        {
+          time: finalStockData.t[trade.startIndex - 1],
+          value: trade.startPrice,
+        },
+        {
+          time: finalStockData.t[trade.startIndex + 1],
+          value: trade.startPrice,
+        },
+      ]);
+    });
+
+    // Moving averages
+    const smallMaSeries = chart.addLineSeries({
+      priceFormat: { type: "price" },
+      color: "blue",
+      lineWidth: 1,
+      pane: 0,
+    });
+    smallMaSeries.setData(
+      finalStockData.c.map((item, i) => ({
+        time: finalStockData.t[i],
+        value: indicators.smallMA ? indicators.smallMA[i] : "",
+      }))
+    );
+    const bigMaSeries = chart.addLineSeries({
+      priceFormat: { type: "price" },
+      color: "yellow",
+      lineWidth: 1,
+      pane: 0,
+    });
+    bigMaSeries.setData(
+      finalStockData.c.map((item, i) => ({
+        time: finalStockData.t[i],
+        value: indicators.bigMA ? indicators.bigMA[i] : "",
+      }))
+    );
+
+    // range marks
+    const ranges = indicators.ranges;
+    ranges.forEach((range, i) => {
+      const color = colors[i % colors.length];
+      const line = chart.addLineSeries({
+        pane: 0,
+        color,
+        lineWidth: 1,
+      });
+
+      line.setData([
+        {
+          time: finalStockData.t[range.start.index],
+          value: range.min,
+        },
+        {
+          time: finalStockData.t[range.end.index],
+          value: range.min,
+        },
+      ]);
+
+      const line2 = chart.addLineSeries({
+        pane: 0,
+        color,
+        lineWidth: 1,
+      });
+      line2.setData([
+        {
+          time: finalStockData.t[range.start.index],
+          value: range.max,
+        },
+        {
+          time: finalStockData.t[range.end.index],
+          value: range.max,
+        },
+      ]);
+    });
+
+    // MACD
+    const macdSeries = chart.addLineSeries({
+      priceFormat: { type: "price" },
+      color: "green",
+      lineWidth: 1,
+      pane: 1,
+    });
+    macdSeries.setData(
+      finalStockData.c.map((item, i) => ({
+        time: finalStockData.t[i],
+        value: indicators.macd ? indicators.macd[i]?.macd : "",
+      }))
+    );
+
+    const macdSignalSeries = chart.addLineSeries({
+      priceFormat: { type: "price" },
+      color: "red",
+      lineWidth: 1,
+      pane: 1,
+    });
+    macdSignalSeries.setData(
+      finalStockData.c.map((item, i) => ({
+        time: finalStockData.t[i],
+        value: indicators.macd ? indicators.macd[i]?.signal : "",
+      }))
+    );
+
+    // RSI
+    const rsiSeries = chart.addLineSeries({
+      priceFormat: { type: "price" },
+      color: "purple",
+      lineWidth: 1,
+      pane: 2,
+    });
+
+    rsiSeries.setData(
+      finalStockData.c.map((item, i) => ({
+        time: finalStockData.t[i],
+        value: indicators.rsi ? indicators.rsi[i] : "",
+      }))
+    );
+
+    chart.timeScale().fitContent();
+  };
+
+  const onIndicesUpdate = () => {
+    setTradesTaken([]);
+
+    // renderChartJsChart();
+    renderChart();
   };
 
   useEffect(() => {
-    setTradesTaken([]);
+    // debounce(onIndicesUpdate, 1200);
   }, [chartDisplayIndices]);
+
+  useEffect(() => {
+    fetchStockData();
+  }, []);
 
   return (
     <div className={styles.container}>
@@ -1219,6 +1059,10 @@ function HomePage() {
         />
       </div>
 
+      <div id="chart" />
+
+      {/* <div className={styles.chart} id="chart-js-container"></div> */}
+
       <div className={styles.chart}>
         <div
           className={styles.chartInner}
@@ -1226,49 +1070,6 @@ function HomePage() {
         >
           <Line options={pricesOptions} data={pricesData} />
         </div>
-      </div>
-
-      <div className={styles.chart}>
-        <Line
-          data={macdData}
-          options={{
-            maintainAspectRatio: false,
-            scales: {
-              y: {
-                ticks: {
-                  stepSize: 0.5,
-                },
-              },
-            },
-          }}
-        />
-      </div>
-
-      <div className={styles.chart}>
-        <Line
-          data={rsiData}
-          options={{
-            maintainAspectRatio: false,
-            scales: {
-              y: {
-                ticks: {
-                  stepSize: 15,
-                },
-              },
-            },
-            annotations: [
-              {
-                type: "box",
-                xMin: 0,
-                xMax: finalStockPrices.length,
-                yMin: 48,
-                yMax: 63,
-                backgroundColor: `rgba(45, 174, 246, 0.25)`,
-                borderColor: `rgb(45,174,246)`,
-              },
-            ],
-          }}
-        />
       </div>
     </div>
   );
