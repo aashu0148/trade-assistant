@@ -43,6 +43,46 @@
     }
   }
 
+  .chartOuter {
+    position: relative;
+
+    .tooltip {
+      position: absolute;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px;
+      z-index: 100;
+      border-radius: 5px;
+      box-shadow: $shadow-2;
+      background-color: $white-1;
+      opacity: 0;
+      transition: opacity 500ms;
+      transform: translate(-50%, 20px);
+
+      .item {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+
+        label {
+          font-size: 12px;
+          color: $gray;
+          font-weight: 500;
+        }
+
+        span {
+          font-size: 12px;
+          font-weight: 600;
+          color: $black;
+          white-space: nowrap;
+        }
+      }
+    }
+  }
+
   .chart {
     width: 1200px;
     overflow-x: auto;
