@@ -68,48 +68,6 @@ Interaction.modes.interpolate = Interpolate;
 // console.log(macd(tataMotorsStockPrices.c));
 
 let timer;
-const timeFrame = 5;
-const getDxForPrice = (price, time = timeFrame) => {
-  const dxPercentForTimeFrames = {
-    5: 0.17 / 100,
-    15: 0.8 / 100,
-    60: 1.9 / 100,
-  };
-
-  return dxPercentForTimeFrames[time] * price;
-};
-const trendEnum = {
-  up: "up",
-  down: "down",
-  range: "range",
-};
-const signalEnum = {
-  buy: "buy",
-  sell: "sell",
-  hold: "hold",
-};
-const signalWeight = {
-  [signalEnum.sell]: -1,
-  [signalEnum.hold]: 0,
-  [signalEnum.buy]: 1,
-};
-const indicatorsWeightEnum = {
-  bollingerBand: 3,
-  movingAvg: 1,
-  sr: 2,
-  macd: 1,
-  rsi: 1,
-  cci: 1,
-  trend: 1,
-  stochastic: 1,
-  psar: 1,
-  superTrend: 1,
-  obv: 1,
-  vwap: 1,
-  williamR: 1,
-  mfi: 1,
-  vPs: 1,
-};
 
 function HomePage() {
   const [tooltipDetails, setTooltipDetails] = useState({
@@ -122,9 +80,20 @@ function HomePage() {
   const [chartDisplayIndices, setChartDisplayIndices] = useState([0, 200]);
   const [tradesTaken, setTradesTaken] = useState([]);
 
+  const [selectedStock, setSelectedStock] = useState("");
   const [stockData, setStockData] = useState({});
 
-  const stock = stockData.HDFCLIFE || {
+  const availableStocks = [
+    ...Object.keys(stockData).map((key) => ({
+      value: key,
+      label: `${key} | ${
+        stockData[key]["5"].c[stockData[key]["5"].c.length - 1]
+      }`,
+      data: stockData[key],
+    })),
+  ].filter((item) => item.data["5"]?.c?.length);
+
+  const stock = stockData[selectedStock] || {
     5: {
       c: [],
       t: [],
@@ -156,7 +125,7 @@ function HomePage() {
 
   const fetchStockData = async () => {
     const res = await fetch(
-      `https://trade-p129.onrender.com/trade/data?from=1691967191961&to=1697947130199`,
+      `https://trade-p129.onrender.com/trade/data?from=1678213800000&to=1691519400000`,
       {
         headers: {
           Authorization:
@@ -169,6 +138,8 @@ function HomePage() {
 
     setLoadingPage(false);
     setStockData(json.data);
+
+    if (!selectedStock) setSelectedStock(Object.keys(json.data)[0]);
   };
 
   const testTakeTradeForBestNumbers = async (priceData, symbol) => {
@@ -188,20 +159,48 @@ function HomePage() {
       return result;
     }
     const indicators = {
-      br: false,
       rsi: false,
-      macd: false,
-      sma: false,
       mfi: false,
       stochastic: false,
       willR: false,
       vwap: false,
       cci: false,
-      // psar: false,
+      sr: false,
+      sr15min: false,
+      br: false,
+      macd: false,
+      sma: false,
+    };
+    const otherIndicators = {
+      rsi: false,
+      mfi: false,
+      stochastic: false,
+      willR: false,
+      vwap: false,
+      cci: false,
+      psar: false,
+    };
+    const impIndicators = {
+      sr: false,
+      sr15min: false,
+      br: false,
+      macd: false,
+      sma: false,
     };
     const indicatorCombinations = getAllCombinations(
       Object.keys(indicators).map((item) => item + "_")
-    ).filter((item) => item.split("_").length < 6);
+    ).filter((item) => {
+      const inds = item.split("_").filter((s) => s);
+
+      let otherIndCount = 0,
+        impIndCount = 0;
+      inds.forEach((i) => {
+        if (Object.keys(otherIndicators).includes(i)) otherIndCount++;
+        if (Object.keys(impIndicators).includes(i)) impIndCount++;
+      });
+
+      return otherIndCount > 2 || impIndCount < 2 ? false : true;
+    });
 
     let goodTradeMetrics = [];
 
@@ -230,7 +229,7 @@ function HomePage() {
 
         const profitPercent = (profits / total) * 100;
 
-        if (profitPercent > 50 && total > 8) {
+        if (profitPercent > 50 && total > 20) {
           goodTradeMetrics.push({
             profitPercent,
             indicatorsObj,
@@ -374,13 +373,8 @@ function HomePage() {
         low: finalStockData["5"].l[i],
         open: finalStockData["5"].o[i],
         close: finalStockData["5"].c[i],
-        index: i,
       }))
     );
-
-    const toolTipWidth = 80;
-    const toolTipHeight = 80;
-    const toolTipMargin = 15;
 
     // update tooltip
     chart.subscribeCrosshairMove((param) => {
@@ -404,14 +398,14 @@ function HomePage() {
         const price = data.value !== undefined ? data.value : data.close;
 
         const y = param.point.y;
-        let left = param.point.x + toolTipMargin;
-        if (left > chartElem.clientWidth - toolTipWidth) {
-          left = param.point.x - toolTipMargin - toolTipWidth;
+        let left = param.point.x;
+        if (left > chartElem.clientWidth) {
+          left = param.point.x;
         }
 
-        let top = y + toolTipMargin;
-        if (top > chartElem.clientHeight - toolTipHeight) {
-          top = y - toolTipHeight - toolTipMargin;
+        let top = y;
+        if (top > chartElem.clientHeight) {
+          top = y;
         }
 
         const style = {
@@ -482,9 +476,10 @@ function HomePage() {
     });
 
     console.log(
+      `Profit: ${trades.filter((item) => item.status == "profit").length}`,
       trades,
       trades.map((item) => item.status),
-      indicators.allSignals
+      indicators
     );
 
     // // Moving averages
@@ -616,7 +611,7 @@ function HomePage() {
     if (loadingPage) return;
 
     debounce(onIndicesUpdate, 1100);
-  }, [loadingPage, chartDisplayIndices]);
+  }, [loadingPage, chartDisplayIndices, selectedStock]);
 
   useEffect(() => {
     fetchStockData();
@@ -636,6 +631,18 @@ function HomePage() {
         <button className="button" onClick={handleLoopTestTrades}>
           Loop test trades
         </button>
+      </div>
+
+      <div className="chips">
+        {availableStocks.map((item) => (
+          <div
+            className={`chip ${selectedStock == item.value ? "active" : ""}`}
+            key={item.value}
+            onClick={() => setSelectedStock(item.value)}
+          >
+            {item.label}
+          </div>
+        ))}
       </div>
 
       <div className={styles.controls}>

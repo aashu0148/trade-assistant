@@ -30,9 +30,9 @@ const signalWeight = {
 export const indicatorsWeightEnum = {
   bollingerBand: 3,
   sr: 2,
-  sr15min: 1.5,
+  sr15min: 2,
   movingAvg: 1.5,
-  br: 1.5,
+  br: 2,
   macd: 1.5,
   rsi: 1,
   cci: 1,
@@ -59,16 +59,32 @@ const getDxForPrice = (price, time = timeFrame) => {
 };
 
 const timesPricesCrossedRange = (prices = [], rangeMin, rangeMax) => {
+  const p0 = prices[0];
   let count = 0,
     currPos = 0;
+  const smallPercent =
+    p0 < 250 ? (0.25 / 100) * prices[0] : (0.1 / 100) * prices[0];
+
+  // prices.forEach((p) => {
+  //   if (p < rangeMin) {
+  //     if (currPos == 1) count++;
+
+  //     currPos = -1;
+  //   }
+  //   if (p > rangeMax) {
+  //     if (currPos == -1) count++;
+
+  //     currPos = 1;
+  //   }
+  // });
 
   prices.forEach((p) => {
-    if (p < rangeMin) {
+    if (Math.abs(p - rangeMin) > smallPercent && p < rangeMin) {
       if (currPos == 1) count++;
 
       currPos = -1;
     }
-    if (p > rangeMax) {
+    if (Math.abs(p - rangeMax) > smallPercent && p > rangeMax) {
       if (currPos == -1) count++;
 
       currPos = 1;
@@ -1089,24 +1105,33 @@ export const takeTrades = async (
       offset: vPointOffset,
       prices: prices,
       times: times,
-      startFrom: i - 40,
-      previousOutput: indicators.vPs.filter((item) => item?.index < i - 40),
+      startFrom: i - 300,
+      // previousOutput: indicators.vPs.filter((item) => item?.index < i - 40),
     });
     const ind_vps15min = getVPoints({
       offset: vPointOffset,
       prices: prices15min,
       times: times15min,
-      startFrom: i - 20,
-      previousOutput: indicators.vPs15min.filter(
-        (item) => item?.index < i - 20
-      ),
+      startFrom: i - 300,
+      // previousOutput: indicators.vPs15min.filter(
+      //   (item) => item?.index < i - 20
+      // ),
     });
     if (ind_vps.length !== indicators.vPs.length) {
       const ind_ranges = getSupportResistanceRangesFromVPoints(
         indicators.vPs,
         prices
       );
-      indicators.ranges = ind_ranges;
+      indicators.ranges = [...indicators.ranges, ...ind_ranges]
+        .filter(
+          (item, index, self) =>
+            self.findIndex((r) => r.start.index == item.start.index) == index
+        )
+        .map((item) =>
+          item.start.index < i - 300
+            ? { ...item, stillStrong: false, reason: "old SR" }
+            : item
+        );
 
       const ind_ranges15min = getSupportResistanceRangesFromVPoints(
         indicators.vPs15min,
@@ -1121,10 +1146,12 @@ export const takeTrades = async (
           ...item,
           start: {
             ...item.start,
+            oldIndex: item.start.index,
             index: times.findIndex((t) => t == item.start.timestamp),
           },
           end: {
             ...item.end,
+            oldIndex: item.end.index,
             index: endAdjusted,
           },
         };
@@ -1465,10 +1492,12 @@ export const takeTrades = async (
       if (
         hour < 9 ||
         hour >= 15 ||
-        (hour == 9 && min < 30) ||
+        (hour == 9 && min < 20) ||
         (hour == 14 && min > 30)
       )
         return false;
+
+      // check is it is not testing the SR
 
       // const lastFewDaysPrices = indicators.prevDaysStart.slice(-7);
       // const lastFewDaysMoves = [];
@@ -1555,7 +1584,7 @@ export const takeTrades = async (
         ...analyticDetails,
       });
 
-      if (possibleProfit < targetProfit && useSupportResistances) continue;
+      // if (possibleProfit < targetProfit && useSupportResistances) continue;
 
       const trade = {
         time: priceData.t[i],
@@ -1599,7 +1628,7 @@ export const takeTrades = async (
         ...analyticDetails,
       });
 
-      if (possibleProfit < targetProfit && useSupportResistances) continue;
+      // if (possibleProfit < targetProfit && useSupportResistances) continue;
 
       const trade = {
         time: priceData.t[i],

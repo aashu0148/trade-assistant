@@ -4,6 +4,7 @@ import { Toaster } from "react-hot-toast";
 
 import PageNotFound from "Pages/PageNotFound/PageNotFound";
 import HomePage from "Pages/HomePage/HomePage";
+import TestPage from "Pages/TestPage/TestPage";
 
 import "styles/global.scss";
 
@@ -20,6 +21,7 @@ function App() {
 
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/test" element={<TestPage />} />
 
           <Route path="/*" element={<PageNotFound />} />
         </Routes>
