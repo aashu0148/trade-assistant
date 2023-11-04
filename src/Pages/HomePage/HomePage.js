@@ -442,19 +442,44 @@ function HomePage() {
       finalStockData,
       {
         additionalIndicators: {
-          sr: true,
-          sr15min: true,
-          br: true,
-          bollinger: true,
-          macd: true,
-          cci: true,
+          tl: true,
+          // sr: true,
+          // sr15min: true,
+          // br: true,
+          // bollinger: true,
+          // macd: true,
+          // cci: true,
         },
+        vPointOffset: 7,
         decisionMakingPoints: 3,
       },
       false
     );
 
+    // const vPoints = indicators.vPs;
+    // vPoints.forEach((v, i) => {
+    //   const color = colors[i % colors.length];
+
+    //   const line = chart.addLineSeries({
+    //     pane: 0,
+    //     color: "blue",
+    //     lineWidth: 8,
+    //   });
+
+    //   line.setData([
+    //     {
+    //       time: finalStockData["5"].t[v.index - 1],
+    //       value: v.value,
+    //     },
+    //     {
+    //       time: finalStockData["5"].t[v.index + 1],
+    //       value: v.value,
+    //     },
+    //   ]);
+    // });
+
     // console.log(trades, indicators);
+    // trade marks
     trades.forEach((trade, i) => {
       const color = colors[i % colors.length];
       const line = chart.addLineSeries({
@@ -479,7 +504,8 @@ function HomePage() {
       `Profit: ${trades.filter((item) => item.status == "profit").length}`,
       trades,
       trades.map((item) => item.status),
-      indicators
+      indicators.allSignals,
+      indicators.trendLines
     );
 
     // // Moving averages
@@ -508,52 +534,75 @@ function HomePage() {
     //   }))
     // );
 
-    // range marks
-    const ranges = indicators.ranges || [];
-
-    ranges.forEach((range, i) => {
-      const color = colors[i % colors.length];
+    // trend lines
+    const trendLines = indicators.trendLines || [];
+    trendLines.forEach((tLine) => {
       const line = chart.addLineSeries({
         pane: 0,
-        color,
-        lineWidth: 8,
+        color: "#197beb",
+        lineWidth: 2,
       });
 
       line.setData([
         {
-          time: finalStockData["5"].t[range.start.index],
-          value: range.min,
+          time: finalStockData["5"].t[tLine.points[0].index],
+          value: tLine.points[0].value,
         },
         {
           time: finalStockData["5"].t[
-            range.stillStrong
-              ? finalStockData["5"].t.length - 1
-              : range.end.index
+            tLine.points[tLine.points.length - 1].index
           ],
-          value: range.min,
+          value: tLine.points[tLine.points.length - 1].value,
         },
       ]);
-
-      // const line2 = chart.addLineSeries({
-      //   pane: 0,
-      //   color,
-      //   lineWidth: 3,
-      // });
-      // line2.setData([
-      //   {
-      //     time: finalStockData["5"].t[range.start.index],
-      //     value: range.max,
-      //   },
-      //   {
-      //     time: finalStockData["5"].t[
-      //       range.stillStrong
-      //         ? finalStockData["5"].t.length - 1
-      //         : range.end.index
-      //     ],
-      //     value: range.max,
-      //   },
-      // ]);
     });
+
+    // range marks
+    // const ranges = indicators.ranges || [];
+
+    // ranges.forEach((range, i) => {
+    //   const color = colors[i % colors.length];
+    //   const line = chart.addLineSeries({
+    //     pane: 0,
+    //     color,
+    //     lineWidth: 8,
+    //   });
+
+    //   line.setData([
+    //     {
+    //       time: finalStockData["5"].t[range.start.index],
+    //       value: range.min,
+    //     },
+    //     {
+    //       time: finalStockData["5"].t[
+    //         range.stillStrong
+    //           ? finalStockData["5"].t.length - 1
+    //           : range.end.index
+    //       ],
+    //       value: range.min,
+    //     },
+    //   ]);
+
+    // const line2 = chart.addLineSeries({
+    //   pane: 0,
+    //   color,
+    //   lineWidth: 3,
+    // });
+    // line2.setData([
+    //   {
+    //     time: finalStockData["5"].t[range.start.index],
+    //     value: range.max,
+    //   },
+    //   {
+    //     time: finalStockData["5"].t[
+    //       range.stillStrong
+    //         ? finalStockData["5"].t.length - 1
+    //         : range.end.index
+    //     ],
+    //     value: range.max,
+    //   },
+    // ]);
+    // });
 
     // MACD
     const macdSeries = chart.addLineSeries({

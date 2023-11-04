@@ -36,6 +36,8 @@ function TestPage() {
 
     setLoadingPage(false);
     setStockData(json.data);
+
+    console.log("DATA fetched", json.data);
   };
 
   const testTakeTradeForBestNumbers = async (priceData, symbol) => {
@@ -101,8 +103,8 @@ function TestPage() {
     let goodTradeMetrics = [];
 
     for (let i = 0; i < indicatorCombinations.length; ++i) {
-      for (let vpOffset = 5; vpOffset < 15; vpOffset += 3) {
-        console.log(symbol);
+      for (let vpOffset = 5; vpOffset < 15; vpOffset += 4) {
+        console.log(symbol, "|", indicatorCombinations[i]);
         const indicators = indicatorCombinations[i]
           .split("_")
           .filter((item) => item);
@@ -125,7 +127,7 @@ function TestPage() {
 
         const profitPercent = (profits / total) * 100;
 
-        if (profitPercent > 50 && total > 20) {
+        if (profitPercent > 45 && total > 20) {
           goodTradeMetrics.push({
             profitPercent,
             indicatorsObj,
@@ -155,7 +157,6 @@ function TestPage() {
   };
 
   const handleLoopTestTrades = async () => {
-
     for (let i = 0; i < selectedStocks.length; ++i) {
       const name = selectedStocks[i];
       const sData = stockData[name];
