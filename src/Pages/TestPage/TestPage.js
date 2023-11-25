@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import ReactJSON from "react-json-view";
 
 import Spinner from "Components/Spinner/Spinner";
 import Button from "Components/Button/Button";
@@ -19,6 +20,8 @@ function TestPage() {
   const [loadingPage, setLoadingPage] = useState(true);
   const [stockData, setStockData] = useState({});
   const [selectedStocks, setSelectedStocks] = useState([]);
+  const [localStorageObj, setLocalStorageObj] = useState({});
+  const [showJSON, setShowJSON] = useState(false);
 
   const availableStocks = [
     ...Object.keys(stockData).map((key) => ({
@@ -186,7 +189,10 @@ function TestPage() {
     );
 
     console.log(`🔵 Trades for: ${symbol}`, structuredClone(goodTradeMetrics));
-    localStorage.setItem(`${symbol}_trades`, JSON.stringify(goodTradeMetrics));
+    localStorage.setItem(
+      `${symbol}_trades`,
+      JSON.stringify(goodTradeMetrics.slice(0, 20))
+    );
   };
 
   const handleLoopTestTrades = async () => {
@@ -204,8 +210,22 @@ function TestPage() {
     }
   };
 
+  const getAllStoredResults = () => {
+    const storageObj = JSON.parse(JSON.stringify(localStorage));
+    if (!Object.keys(storageObj).length) return;
+
+    const storage = Object.keys(storageObj).reduce((acc, key) => {
+      acc[key] = JSON.parse(storageObj[key]);
+
+      return acc;
+    }, {});
+
+    setLocalStorageObj(storage);
+  };
+
   useEffect(() => {
     fetchStockData();
+    getAllStoredResults();
   }, []);
 
   return loadingPage ? (
@@ -214,30 +234,54 @@ function TestPage() {
     </div>
   ) : (
     <div className="container">
-      <p className="heading">Test stock for best numbers</p>
+      <div className="section">
+        <p className="heading">Test stock for best numbers</p>
 
-      <div className="chips">
-        {availableStocks.map((item) => (
-          <div
-            className={`chip ${
-              selectedStocks.includes(item.value) ? "active" : ""
-            }`}
-            key={item.value}
-            onClick={() =>
-              setSelectedStocks((prev) =>
-                prev.includes(item.value)
-                  ? prev.filter((s) => s !== item.value)
-                  : [...prev, item.value]
-              )
-            }
-          >
-            {item.label}
-          </div>
-        ))}
+        <div className="chips">
+          {availableStocks.map((item) => (
+            <div
+              className={`chip ${
+                selectedStocks.includes(item.value) ? "active" : ""
+              }`}
+              key={item.value}
+              onClick={() =>
+                setSelectedStocks((prev) =>
+                  prev.includes(item.value)
+                    ? prev.filter((s) => s !== item.value)
+                    : [...prev, item.value]
+                )
+              }
+            >
+              {item.label}
+            </div>
+          ))}
+        </div>
+
+        <div className="footer">
+          <Button onClick={handleLoopTestTrades}>Start loop test</Button>
+        </div>
       </div>
 
-      <div className="footer">
-        <Button onClick={handleLoopTestTrades}>Start loop test</Button>
+      <div className="section">
+        <p className="heading">Previously tested data</p>
+
+        {showJSON ? (
+          <Button outlineButton onClick={() => setShowJSON(false)}>
+            Hide JSON
+          </Button>
+        ) : (
+          <Button onClick={() => setShowJSON(true)}>Show JSON</Button>
+        )}
+
+        {showJSON ? (
+          <ReactJSON
+            style={{ height: "600px", overflowY: "auto" }}
+            src={localStorageObj}
+            theme={"monokai"}
+          />
+        ) : (
+          ""
+        )}
       </div>
     </div>
   );
