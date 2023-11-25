@@ -6,6 +6,15 @@ import Button from "Components/Button/Button";
 import { takeTrades } from "utils/tradeUtil";
 import { formatSecondsToHrMinSec } from "utils/util";
 
+function shuffleArray(array) {
+  for (var i = array.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var temp = array[i];
+    array[i] = array[j];
+    array[j] = temp;
+  }
+}
+
 function TestPage() {
   const [loadingPage, setLoadingPage] = useState(true);
   const [stockData, setStockData] = useState({});
@@ -23,7 +32,7 @@ function TestPage() {
 
   const fetchStockData = async () => {
     const res = await fetch(
-      `https://trade-p129.onrender.com/trade/data?from=1683225000000&to=1698550040946`,
+      `https://trade-p129.onrender.com/trade/data?from=1685557800000&to=1700394167653`,
       {
         headers: {
           Authorization:
@@ -61,33 +70,34 @@ function TestPage() {
       mfi: false,
       stochastic: false,
       willR: false,
-      vwap: false,
-      cci: false,
-      sr: false,
-      sr15min: false,
-      br: false,
       macd: false,
       sma: false,
+      cci: false,
+      sr: false,
+      br: false,
+      tl: false,
     };
     const otherIndicators = {
       rsi: false,
       mfi: false,
       stochastic: false,
       willR: false,
-      vwap: false,
       cci: false,
-      psar: false,
-    };
-    const impIndicators = {
-      sr: false,
-      sr15min: false,
-      br: false,
       macd: false,
       sma: false,
+    };
+    const impIndicators = {
+      tl: false,
+      sr: false,
+      br: false,
     };
     const indicatorCombinations = getAllCombinations(
       Object.keys(indicators).map((item) => item + "_")
     ).filter((item) => {
+      if (item.includes("rsi") && item.includes("cci")) return false;
+      if (item.includes("rsi") && item.includes("willR")) return false;
+      if (!item.includes("tl")) return false;
+
       const inds = item.split("_").filter((s) => s);
 
       let otherIndCount = 0,
@@ -97,53 +107,59 @@ function TestPage() {
         if (Object.keys(impIndicators).includes(i)) impIndCount++;
       });
 
-      return otherIndCount > 2 || impIndCount < 2 ? false : true;
+      return otherIndCount > 3 || impIndCount < 1 ? false : true;
     });
+    shuffleArray(indicatorCombinations);
 
     let goodTradeMetrics = [];
-
     for (let i = 0; i < indicatorCombinations.length; ++i) {
-      for (let vpOffset = 5; vpOffset < 15; vpOffset += 4) {
-        console.log(symbol, "|", indicatorCombinations[i]);
-        const indicators = indicatorCombinations[i]
-          .split("_")
-          .filter((item) => item);
+      for (let vpOffset = 6; vpOffset < 13; vpOffset += 3) {
+        for (let tlVpOffset = 7; tlVpOffset < 12; tlVpOffset += 2) {
+          console.log(symbol, "|", indicatorCombinations[i]);
+          const indicators = indicatorCombinations[i]
+            .split("_")
+            .filter((item) => item);
 
-        const indicatorsObj = {};
-        indicators.forEach((item) => (indicatorsObj[item] = true));
+          const indicatorsObj = {};
+          indicators.forEach((item) => (indicatorsObj[item] = true));
 
-        const { trades } = await takeTrades(priceData, {
-          additionalIndicators: indicatorsObj,
-          vPointOffset: vpOffset,
-        });
-
-        if (!trades.length) {
-          console.log("No trades!");
-          continue;
-        }
-
-        const total = trades.length;
-        const profits = trades.filter((item) => item.status == "profit").length;
-
-        const profitPercent = (profits / total) * 100;
-
-        if (profitPercent > 45 && total > 20) {
-          goodTradeMetrics.push({
-            profitPercent,
-            indicatorsObj,
-            vpOffset,
-            total,
-            profitable: profits,
-            lossMaking: total - profits,
+          const { trades } = await takeTrades(priceData, {
+            additionalIndicators: indicatorsObj,
+            vPointOffset: vpOffset,
+            trendLineVPointOffset: tlVpOffset,
           });
 
-          console.log(
-            `🟡P-P:${parseInt(
-              profitPercent
-            )}, vp-o:${vpOffset}, t:${total}, indicators:${Object.keys(
-              indicatorsObj
-            ).join(" | ")}`
-          );
+          if (!trades.length) {
+            console.log("No trades!");
+            continue;
+          }
+
+          const total = trades.length;
+          const profits = trades.filter(
+            (item) => item.status == "profit"
+          ).length;
+
+          const profitPercent = (profits / total) * 100;
+
+          if (profitPercent > 45 && total > 20) {
+            goodTradeMetrics.push({
+              profitPercent,
+              indicatorsObj,
+              vpOffset,
+              tlVpOffset,
+              total,
+              profitable: profits,
+              lossMaking: total - profits,
+            });
+
+            console.log(
+              `🟡P-P:${parseInt(
+                profitPercent
+              )}, vp-o:${vpOffset}, t:${total}, indicators:${Object.keys(
+                indicatorsObj
+              ).join(" | ")}`
+            );
+          }
         }
       }
     }

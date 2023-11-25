@@ -451,6 +451,7 @@ function HomePage() {
           // cci: true,
         },
         vPointOffset: 7,
+        trendLineVPointOffset: 7,
         decisionMakingPoints: 3,
       },
       false
