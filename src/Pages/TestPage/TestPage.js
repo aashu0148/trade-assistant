@@ -32,7 +32,7 @@ function TestPage() {
 
   const fetchStockData = async () => {
     const res = await fetch(
-      `https://trade-p129.onrender.com/trade/data?from=1685557800000&to=1700394167653`,
+      `https://trade-p129.onrender.com/trade/data?from=1692238818805&to=1700878818805`,
       {
         headers: {
           Authorization:
@@ -111,11 +111,11 @@ function TestPage() {
     });
     shuffleArray(indicatorCombinations);
 
+    console.log(indicatorCombinations);
     let goodTradeMetrics = [];
     for (let i = 0; i < indicatorCombinations.length; ++i) {
       for (let vpOffset = 6; vpOffset < 13; vpOffset += 3) {
         for (let tlVpOffset = 7; tlVpOffset < 12; tlVpOffset += 2) {
-          console.log(symbol, "|", indicatorCombinations[i]);
           const indicators = indicatorCombinations[i]
             .split("_")
             .filter((item) => item);
@@ -123,7 +123,7 @@ function TestPage() {
           const indicatorsObj = {};
           indicators.forEach((item) => (indicatorsObj[item] = true));
 
-          const { trades } = await takeTrades(priceData, {
+          const { trades, preset } = await takeTrades(priceData, {
             additionalIndicators: indicatorsObj,
             vPointOffset: vpOffset,
             trendLineVPointOffset: tlVpOffset,
@@ -138,18 +138,35 @@ function TestPage() {
           const profits = trades.filter(
             (item) => item.status == "profit"
           ).length;
+          const lost = trades.filter((item) => item.status == "loss").length;
+          const unfinished = trades.filter(
+            (item) => item.status == "unfinished"
+          ).length;
+          const unfinishedPercent = (unfinished / total) * 100;
 
-          const profitPercent = (profits / total) * 100;
+          const profitPercent = (profits / (profits + lost)) * 100;
 
-          if (profitPercent > 45 && total > 20) {
+          console.log(
+            `${symbol} | ${
+              indicatorCombinations[i]
+            } | PP-${profitPercent.toFixed(
+              1
+            )} | UfP-${unfinishedPercent.toFixed(1)} | T-${total}`
+          );
+          if (profitPercent > 45 && total > 20 && unfinishedPercent < 25) {
             goodTradeMetrics.push({
-              profitPercent,
-              indicatorsObj,
-              vpOffset,
-              tlVpOffset,
-              total,
-              profitable: profits,
-              lossMaking: total - profits,
+              symbol: symbol,
+              analytics: {
+                profitPercent,
+                indicatorsObj,
+                vpOffset,
+                tlVpOffset,
+                total,
+                profitable: profits,
+                lossMaking: lost,
+                unfinished,
+              },
+              preset,
             });
 
             console.log(

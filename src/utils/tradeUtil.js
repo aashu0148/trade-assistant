@@ -27,6 +27,61 @@ const signalWeight = {
   [signalEnum.hold]: 0,
   [signalEnum.buy]: 1,
 };
+export const defaultTradePreset = {
+  decisionMakingPoints: 3,
+  additionalIndicators: {
+    sr: true,
+    tl: true,
+    bollinger: true,
+    sma: true,
+    willR: false,
+    mfi: false,
+    cci: false,
+    stochastic: false,
+    vwap: false,
+    psar: false,
+    br: false,
+    rsi: false,
+    macd: true,
+    obv: false,
+  },
+  useSRsToNeglectTrades: true,
+  vPointOffset: 8,
+  trendLineVPointOffset: 7,
+  rsiLow: 40,
+  rsiHigh: 70,
+  smaLowPeriod: 18,
+  smaHighPeriod: 150,
+  rsiPeriod: 8,
+  macdFastPeriod: 14,
+  macdSlowPeriod: 24,
+  macdSignalPeriod: 8,
+  bollingerBandPeriod: 23,
+  bollingerBandStdDev: 4,
+  cciPeriod: 20,
+  stochasticPeriod: 14,
+  stochasticMA: 3,
+  stochasticLow: 23,
+  stochasticHigh: 83,
+  willRPeriod: 14,
+  willRLow: -90,
+  willRHigh: -10,
+  psarStart: 0.02,
+  psarAcceleration: 0.02,
+  psarMaxValue: 0.2,
+  superTrendMultiplier: 3,
+  mfiPeriod: 14,
+  mfiLow: 23,
+  mfiHigh: 83,
+  vwapPeriod: 14,
+  targetProfitPercent: 1.4,
+  stopLossPercent: 0.7,
+  brTotalTrendLength: 44,
+  brLongTrendLength: 21,
+  brShortTrendLength: 10,
+  avoidingLatestSmallMovePercent: 0.9,
+  trendCheckingLastFewCandles: 8,
+};
 export const indicatorsWeightEnum = {
   bollingerBand: 3,
   sr: 2,
@@ -672,13 +727,20 @@ const getSmaCrossedSignal = ({ smaLow = [], smaHigh = [] }) => {
 
 export const takeTrades = async (
   stockData = {},
-  {
+  preset = defaultTradePreset,
+  takeOneRecentTrade = false
+) => {
+  if (!stockData || !stockData["5"]?.c?.length)
+    return { trades: [], analytics: [] };
+  let priceData = stockData["5"];
+  // let priceData15min = stockData["15"];
+  if (!priceData.c?.length) return { trades: [], analytics: [] };
+
+  const {
     additionalIndicators = {
       willR: false,
       mfi: false,
       sr: false,
-      // sr15min: false,
-      // trend: false,
       cci: false,
       stochastic: false,
       vwap: false,
@@ -691,7 +753,6 @@ export const takeTrades = async (
       sma: false,
     },
     decisionMakingPoints = 3,
-    reverseTheTradingLogic = false,
     useSRsToNeglectTrades = true,
     vPointOffset = 8,
     trendLineVPointOffset = 7,
@@ -728,17 +789,7 @@ export const takeTrades = async (
     brShortTrendLength = 10,
     avoidingLatestSmallMovePercent = 0.9,
     trendCheckingLastFewCandles = 8,
-    lastMoreCandleOffset = 40,
-    lastFewCandleOffset = 6,
-    lastCandlesMultiplier = 3,
-  },
-  takeOneRecentTrade = false
-) => {
-  if (!stockData || !stockData["5"]?.c?.length)
-    return { trades: [], analytics: [] };
-  let priceData = stockData["5"];
-  // let priceData15min = stockData["15"];
-  if (!priceData.c?.length) return { trades: [], analytics: [] };
+  } = preset;
 
   if (targetProfitPercent <= 0) targetProfitPercent = 0.1;
   if (stopLossPercent <= 0) stopLossPercent = 0.1;
@@ -1952,5 +2003,5 @@ export const takeTrades = async (
     }
   }
 
-  return { trades, analytics, indicators };
+  return { trades, analytics, indicators, preset };
 };
