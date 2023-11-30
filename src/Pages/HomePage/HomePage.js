@@ -420,6 +420,7 @@ function HomePage() {
           style,
           index,
           close: price,
+          ...data,
           date: `${getDateFormatted(
             dateStr * 1000,
             true,
@@ -442,14 +443,15 @@ function HomePage() {
       finalStockData,
       {
         additionalIndicators: {
-          tl: true,
+          // tl: true,
           // sr: true,
-          // sr15min: true,
           // br: true,
+          engulf: true,
           // bollinger: true,
           // macd: true,
           // cci: true,
         },
+        useSRsToNeglectTrades: false,
         vPointOffset: 7,
         trendLineVPointOffset: 7,
         decisionMakingPoints: 3,
@@ -505,8 +507,7 @@ function HomePage() {
       `Profit: ${trades.filter((item) => item.status == "profit").length}`,
       trades,
       trades.map((item) => item.status),
-      indicators.allSignals,
-      indicators.trendLines
+      indicators
     );
 
     // // Moving averages
@@ -559,51 +560,51 @@ function HomePage() {
     });
 
     // range marks
-    // const ranges = indicators.ranges || [];
+    const ranges = indicators.ranges || [];
 
-    // ranges.forEach((range, i) => {
-    //   const color = colors[i % colors.length];
-    //   const line = chart.addLineSeries({
-    //     pane: 0,
-    //     color,
-    //     lineWidth: 8,
-    //   });
+    ranges.forEach((range, i) => {
+      const color = colors[i % colors.length];
+      const line = chart.addLineSeries({
+        pane: 0,
+        color,
+        lineWidth: 8,
+      });
 
-    //   line.setData([
-    //     {
-    //       time: finalStockData["5"].t[range.start.index],
-    //       value: range.min,
-    //     },
-    //     {
-    //       time: finalStockData["5"].t[
-    //         range.stillStrong
-    //           ? finalStockData["5"].t.length - 1
-    //           : range.end.index
-    //       ],
-    //       value: range.min,
-    //     },
-    //   ]);
+      line.setData([
+        {
+          time: finalStockData["5"].t[range.start.index],
+          value: range.min,
+        },
+        {
+          time: finalStockData["5"].t[
+            range.stillStrong
+              ? finalStockData["5"].t.length - 1
+              : range.end.index
+          ],
+          value: range.min,
+        },
+      ]);
 
-    // const line2 = chart.addLineSeries({
-    //   pane: 0,
-    //   color,
-    //   lineWidth: 3,
-    // });
-    // line2.setData([
-    //   {
-    //     time: finalStockData["5"].t[range.start.index],
-    //     value: range.max,
-    //   },
-    //   {
-    //     time: finalStockData["5"].t[
-    //       range.stillStrong
-    //         ? finalStockData["5"].t.length - 1
-    //         : range.end.index
-    //     ],
-    //     value: range.max,
-    //   },
-    // ]);
-    // });
+      const line2 = chart.addLineSeries({
+        pane: 0,
+        color,
+        lineWidth: 3,
+      });
+      line2.setData([
+        {
+          time: finalStockData["5"].t[range.start.index],
+          value: range.max,
+        },
+        {
+          time: finalStockData["5"].t[
+            range.stillStrong
+              ? finalStockData["5"].t.length - 1
+              : range.end.index
+          ],
+          value: range.max,
+        },
+      ]);
+    });
 
     // MACD
     const macdSeries = chart.addLineSeries({
@@ -729,18 +730,12 @@ function HomePage() {
 
       <div className={styles.chartOuter}>
         <div className={styles.tooltip} style={{ ...tooltipDetails.style }}>
-          <div className={styles.item}>
-            <label>Index</label>
-            <span>{tooltipDetails.index}</span>
-          </div>
-          <div className={styles.item}>
-            <label>Close</label>
-            <span>{tooltipDetails.close}</span>
-          </div>
-          <div className={styles.item}>
-            <label>Date</label>
-            <span>{tooltipDetails.date}</span>
-          </div>
+          {["index", "close", "open", "high", "low", "date"].map((item) => (
+            <div className={styles.item} key={item}>
+              <label>{item}</label>
+              <span>{tooltipDetails[item]}</span>
+            </div>
+          ))}
         </div>
 
         <div id="chart" />

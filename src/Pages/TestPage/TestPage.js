@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import ReactJSON from "react-json-view";
 
 import Spinner from "Components/Spinner/Spinner";
@@ -52,6 +52,85 @@ function TestPage() {
     console.log("DATA fetched", json.data);
   };
 
+  const testTradesLogic = async ({
+    symbol,
+    priceData,
+    indicatorCombination,
+    vpOffset,
+    tlVpOffset,
+    goodTradeMetrics = [],
+    targetProfitPercent = 1.4,
+  }) => {
+    const indicators = indicatorCombination.split("_").filter((item) => item);
+
+    const indicatorsObj = {};
+    indicators.forEach((item) => (indicatorsObj[item] = true));
+
+    const {
+      trades,
+      preset,
+      indicators: drawnIndicators,
+    } = await takeTrades(priceData, {
+      additionalIndicators: indicatorsObj,
+      vPointOffset: vpOffset,
+      trendLineVPointOffset: tlVpOffset,
+      targetProfitPercent,
+    });
+
+    if (!trades.length) {
+      console.log("No trades!");
+      return {
+        trades,
+        profitPercent: 0,
+        unfinishedPercent: 0,
+        isGoodTrade: false,
+      };
+    }
+
+    const total = trades.length;
+    const profits = trades.filter((item) => item.status == "profit").length;
+    const lost = trades.filter((item) => item.status == "loss").length;
+    const unfinished = trades.filter(
+      (item) => item.status == "unfinished"
+    ).length;
+    const unfinishedPercent = (unfinished / total) * 100;
+
+    const profitPercent = (profits / (profits + lost)) * 100;
+    const isGoodTrade =
+      profitPercent > 47 && total > 20 && unfinishedPercent < 25;
+
+    console.log(`${symbol} | ${indicatorCombination}`);
+    if (isGoodTrade) {
+      goodTradeMetrics.push({
+        symbol: symbol,
+        analytics: {
+          profitPercent,
+          total,
+          profitable: profits,
+          lossMaking: lost,
+          unfinished,
+        },
+        preset,
+      });
+
+      console.log(
+        `🟡P-P:${parseInt(profitPercent)} | PP-${profitPercent.toFixed(
+          1
+        )} | UfP-${unfinishedPercent.toFixed(1)} | T-${total}}`
+      );
+    }
+
+    return {
+      trades,
+      indicators: drawnIndicators,
+      preset,
+      goodTradeMetrics,
+      profitPercent,
+      unfinishedPercent,
+      isGoodTrade,
+    };
+  };
+
   const testTakeTradeForBestNumbers = async (priceData, symbol) => {
     function getAllCombinations(arr) {
       function helper(start, current) {
@@ -94,6 +173,7 @@ function TestPage() {
       sr: false,
       br: false,
     };
+
     const indicatorCombinations = getAllCombinations(
       Object.keys(indicators).map((item) => item + "_")
     ).filter((item) => {
@@ -112,86 +192,72 @@ function TestPage() {
 
       return otherIndCount > 3 || impIndCount < 1 ? false : true;
     });
-    shuffleArray(indicatorCombinations);
+    // shuffleArray(indicatorCombinations);
 
-    console.log(indicatorCombinations);
-    let goodTradeMetrics = [];
+    console.log("indicatorCombinations:", indicatorCombinations.length);
+    let goodTradeMetrics = [],
+      skipTlVpOffset = false,
+      skipVpOffset = false;
     for (let i = 0; i < indicatorCombinations.length; ++i) {
       for (let vpOffset = 6; vpOffset < 13; vpOffset += 3) {
+        if (skipVpOffset) {
+          console.log("SKIPPING vpOffset");
+          vpOffset = 14;
+          skipVpOffset = false;
+          skipTlVpOffset = false;
+          continue;
+        }
+
         for (let tlVpOffset = 7; tlVpOffset < 12; tlVpOffset += 2) {
-          const indicators = indicatorCombinations[i]
-            .split("_")
-            .filter((item) => item);
-
-          const indicatorsObj = {};
-          indicators.forEach((item) => (indicatorsObj[item] = true));
-
-          const { trades, preset } = await takeTrades(priceData, {
-            additionalIndicators: indicatorsObj,
-            vPointOffset: vpOffset,
-            trendLineVPointOffset: tlVpOffset,
-          });
-
-          if (!trades.length) {
-            console.log("No trades!");
+          if (skipTlVpOffset || skipVpOffset) {
+            console.log("SKIPPING tlVpOffset");
+            tlVpOffset = 12;
+            skipTlVpOffset = false;
             continue;
           }
 
-          const total = trades.length;
-          const profits = trades.filter(
-            (item) => item.status == "profit"
-          ).length;
-          const lost = trades.filter((item) => item.status == "loss").length;
-          const unfinished = trades.filter(
-            (item) => item.status == "unfinished"
-          ).length;
-          const unfinishedPercent = (unfinished / total) * 100;
-
-          const profitPercent = (profits / (profits + lost)) * 100;
-
-          console.log(
-            `${symbol} | ${
-              indicatorCombinations[i]
-            } | PP-${profitPercent.toFixed(
-              1
-            )} | UfP-${unfinishedPercent.toFixed(1)} | T-${total}`
-          );
-          if (profitPercent > 45 && total > 20 && unfinishedPercent < 25) {
-            goodTradeMetrics.push({
-              symbol: symbol,
-              analytics: {
-                profitPercent,
-                indicatorsObj,
-                vpOffset,
-                tlVpOffset,
-                total,
-                profitable: profits,
-                lossMaking: lost,
-                unfinished,
-              },
-              preset,
+          const { trades, isGoodTrade, profitPercent, unfinishedPercent } =
+            await testTradesLogic({
+              symbol,
+              goodTradeMetrics,
+              priceData,
+              tlVpOffset,
+              vpOffset,
+              indicatorCombination: indicatorCombinations[i],
             });
 
-            console.log(
-              `🟡P-P:${parseInt(
-                profitPercent
-              )}, vp-o:${vpOffset}, t:${total}, indicators:${Object.keys(
-                indicatorsObj
-              ).join(" | ")}`
-            );
+          if (profitPercent < 20) {
+            skipVpOffset = true;
+          } else if (isGoodTrade || !trades.length) {
+            skipTlVpOffset = true;
+          }
+
+          if (unfinishedPercent > 40 && priceData["5"].c[0] > 750) {
+            console.log("🔴High unfinished percent:", unfinishedPercent);
+            for (let targetP = 1.2; targetP > 0.6; targetP -= 0.2) {
+              await testTradesLogic({
+                symbol,
+                goodTradeMetrics,
+                priceData,
+                tlVpOffset,
+                vpOffset,
+                indicatorCombination: indicatorCombinations[i],
+                targetProfitPercent: targetP,
+              });
+            }
           }
         }
       }
     }
 
     goodTradeMetrics = goodTradeMetrics.sort((a, b) =>
-      a.total > b.total ? -1 : 1
+      a.analytics.total > b.analytics.total ? -1 : 1
     );
 
     console.log(`🔵 Trades for: ${symbol}`, structuredClone(goodTradeMetrics));
     localStorage.setItem(
       `${symbol}_trades`,
-      JSON.stringify(goodTradeMetrics.slice(0, 20))
+      JSON.stringify(goodTradeMetrics.slice(0, 30))
     );
   };
 
@@ -215,8 +281,10 @@ function TestPage() {
     if (!Object.keys(storageObj).length) return;
 
     const storage = Object.keys(storageObj).reduce((acc, key) => {
-      acc[key] = JSON.parse(storageObj[key]);
+      const res = JSON.parse(storageObj[key]);
+      res.sort((a, b) => (a.analytics.total > b.analytics.total ? -1 : 1));
 
+      acc[key] = res;
       return acc;
     }, {});
 
@@ -227,6 +295,17 @@ function TestPage() {
     fetchStockData();
     getAllStoredResults();
   }, []);
+
+  const jsonDiv = useMemo(
+    () => (
+      <ReactJSON
+        style={{ height: "600px", overflowY: "auto" }}
+        src={localStorageObj}
+        theme={"monokai"}
+      />
+    ),
+    [localStorageObj]
+  );
 
   return loadingPage ? (
     <div className="spinner-container">
@@ -273,15 +352,7 @@ function TestPage() {
           <Button onClick={() => setShowJSON(true)}>Show JSON</Button>
         )}
 
-        {showJSON ? (
-          <ReactJSON
-            style={{ height: "600px", overflowY: "auto" }}
-            src={localStorageObj}
-            theme={"monokai"}
-          />
-        ) : (
-          ""
-        )}
+        {showJSON ? jsonDiv : ""}
       </div>
     </div>
   );
