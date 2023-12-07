@@ -60,6 +60,7 @@ function TestPage() {
     tlVpOffset,
     goodTradeMetrics = [],
     targetProfitPercent = 1.4,
+    stopLossPercent = 0.7,
   }) => {
     const indicators = indicatorCombination.split("_").filter((item) => item);
 
@@ -75,6 +76,7 @@ function TestPage() {
       vPointOffset: vpOffset,
       trendLineVPointOffset: tlVpOffset,
       targetProfitPercent,
+      stopLossPercent,
     });
 
     if (!trades.length) {
@@ -97,9 +99,8 @@ function TestPage() {
 
     const profitPercent = (profits / (profits + lost)) * 100;
     const isGoodTrade =
-      profitPercent > 47 && total > 20 && unfinishedPercent < 25;
+      profitPercent > 50 && total > 40 && unfinishedPercent < 45;
 
-    console.log(`${symbol} | ${indicatorCombination}`);
     if (isGoodTrade) {
       goodTradeMetrics.push({
         symbol: symbol,
@@ -118,7 +119,14 @@ function TestPage() {
           1
         )} | UfP-${unfinishedPercent.toFixed(1)} | T-${total}}`
       );
-    }
+    } else
+      console.log(
+        `${symbol} | ${indicatorCombination} | T:${total} | PP:${parseInt(
+          profitPercent
+        )} | UP:${parseInt(
+          unfinishedPercent
+        )} | trP:${targetProfitPercent} | slP:${stopLossPercent}`
+      );
 
     return {
       trades,
@@ -147,6 +155,7 @@ function TestPage() {
       helper(0, []);
       return result;
     }
+
     const indicators = {
       rsi: false,
       mfi: false,
@@ -158,6 +167,7 @@ function TestPage() {
       sr: false,
       br: false,
       tl: false,
+      engulf: false,
     };
     const otherIndicators = {
       rsi: false,
@@ -172,6 +182,7 @@ function TestPage() {
       tl: false,
       sr: false,
       br: false,
+      engulf: false,
     };
 
     const indicatorCombinations = getAllCombinations(
@@ -193,6 +204,33 @@ function TestPage() {
       return otherIndCount > 3 || impIndCount < 1 ? false : true;
     });
     // shuffleArray(indicatorCombinations);
+
+    const priceWinRatios = [
+      {
+        min: 0,
+        max: 120,
+        tp: 1,
+        sp: 0.6,
+      },
+      {
+        min: 120,
+        max: 400,
+        tp: 1.4,
+        sp: 0.7,
+      },
+      {
+        min: 300,
+        max: 900,
+        tp: 1.1,
+        sp: 0.55,
+      },
+      {
+        min: 900,
+        max: 80000,
+        tp: 1,
+        sp: 0.6,
+      },
+    ];
 
     console.log("indicatorCombinations:", indicatorCombinations.length);
     let goodTradeMetrics = [],
@@ -216,6 +254,11 @@ function TestPage() {
             continue;
           }
 
+          const price = priceData["5"].c[0];
+          const ratio = priceWinRatios.find(
+            (item) => item.min < price && item.max >= price
+          );
+
           const { trades, isGoodTrade, profitPercent, unfinishedPercent } =
             await testTradesLogic({
               symbol,
@@ -224,27 +267,14 @@ function TestPage() {
               tlVpOffset,
               vpOffset,
               indicatorCombination: indicatorCombinations[i],
+              targetProfitPercent: ratio.tp,
+              stopLossPercent: ratio.sp,
             });
 
           if (profitPercent < 20) {
             skipVpOffset = true;
           } else if (isGoodTrade || !trades.length) {
             skipTlVpOffset = true;
-          }
-
-          if (unfinishedPercent > 40 && priceData["5"].c[0] > 750) {
-            console.log("🔴High unfinished percent:", unfinishedPercent);
-            for (let targetP = 1.2; targetP > 0.6; targetP -= 0.2) {
-              await testTradesLogic({
-                symbol,
-                goodTradeMetrics,
-                priceData,
-                tlVpOffset,
-                vpOffset,
-                indicatorCombination: indicatorCombinations[i],
-                targetProfitPercent: targetP,
-              });
-            }
           }
         }
       }

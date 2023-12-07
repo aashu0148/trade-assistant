@@ -443,9 +443,9 @@ function HomePage() {
       finalStockData,
       {
         additionalIndicators: {
-          // tl: true,
-          // sr: true,
-          // br: true,
+          tl: true,
+          sr: true,
+          br: true,
           engulf: true,
           // bollinger: true,
           // macd: true,
