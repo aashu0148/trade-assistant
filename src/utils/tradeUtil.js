@@ -34,7 +34,6 @@ export const defaultTradePreset = {
     sr: true,
     tl: true,
     engulf: true,
-    meStar: true,
     bollinger: true,
     sma: true,
     willR: false,
@@ -51,9 +50,9 @@ export const defaultTradePreset = {
   useSRsToNeglectTrades: true,
   vPointOffset: 8,
   trendLineVPointOffset: 7,
+  adxPeriod: 14,
   rsiLow: 40,
   rsiHigh: 70,
-  adxPeriod: 14,
   smaLowPeriod: 18,
   smaHighPeriod: 150,
   rsiPeriod: 8,
@@ -91,7 +90,7 @@ export const indicatorsWeightEnum = {
   sr: 2,
   tl: 2,
   engulf: 2,
-  meStar: 2,
+  sr15min: 2,
   movingAvg: 1.5,
   br: 2,
   macd: 1.5,
@@ -154,162 +153,6 @@ const timesPricesCrossedRange = (prices = [], rangeMin, rangeMax) => {
 
   return count;
 };
-
-// made to replace vPoint and range calculation but it takes same or more time than previous
-export class Range {
-  prices = [];
-  vPointOffset = 10;
-  vPoints = [];
-  ranges = [];
-
-  constructor({ vPointOffset }) {
-    if (!isNaN(vPointOffset)) this.vPointOffset = vPointOffset;
-  }
-
-  nextRangeValue({ price }) {
-    this.prices.push(price);
-    const pricesLength = this.prices.length;
-    const oldVpsLength = this.vPoints.length;
-
-    // vPoint calculation
-    const pointIndex = pricesLength - this.vPointOffset;
-    if (pointIndex < this.vPointOffset * 2) return { vPoints: [], ranges: [] };
-
-    const pointPrice = this.prices[pointIndex];
-    let max = 0,
-      min = 9999999;
-    for (let i = pointIndex - this.vPointOffset; i < pricesLength; ++i) {
-      const p = this.prices[i];
-      if (p < min) min = p;
-      if (p > max) max = p;
-    }
-
-    const upAllClear = pointPrice >= max;
-    const downAllClear = pointPrice <= min;
-    if (upAllClear || downAllClear) {
-      const previousVPoint = this.vPoints.length
-        ? this.vPoints[this.vPoints.length - 1]
-        : {};
-
-      if (previousVPoint.value !== pointPrice)
-        this.vPoints.push({
-          index: pointIndex,
-          value: pointPrice,
-        });
-    }
-
-    // ranges calculation
-    const getFormattedRanges = () => {
-      const goodRanges = this.ranges.filter((item) => item.points.length > 2);
-      const finalRanges = [];
-      // neglecting sub ranges
-      for (let i = 0; i < goodRanges.length; ++i) {
-        const currR = goodRanges[i];
-        const subRanges = [];
-
-        for (let j = 0; j < goodRanges.length; ++j) {
-          const r = goodRanges[j];
-
-          const isSubRange =
-            currR.start.index >= r.start.index &&
-            currR.end.index <= r.end.index &&
-            currR.min >= r.min &&
-            currR.max <= r.max;
-
-          if (isSubRange) subRanges.push(currR);
-        }
-
-        if (subRanges.length < 2) finalRanges.push(currR);
-      }
-
-      return finalRanges;
-    };
-
-    if (oldVpsLength == this.vPoints.length)
-      return { vPoints: this.vPoints, ranges: getFormattedRanges() };
-
-    const lastVPoint = this.vPoints[this.vPoints.length - 1];
-
-    let pointAddedInARange = false;
-    for (let i = 0; i < this.ranges.length; ++i) {
-      const currRange = this.ranges[i];
-
-      if (!currRange.stillStrong) continue;
-
-      const lastRangePoint = currRange.points[currRange.points.length - 1];
-      const avgPoints =
-        currRange.points.reduce((acc, curr) => acc + curr.value, 0) /
-        currRange.points.length;
-
-      const allowedDx = getDxForPrice(lastVPoint.value);
-      const isNearlyEqual = nearlyEquateNums(
-        avgPoints,
-        lastVPoint.value,
-        allowedDx
-      );
-      if (!isNearlyEqual) continue;
-
-      const rangePrices = this.prices.slice(
-        lastRangePoint.index,
-        lastVPoint.index
-      );
-
-      const crossedTimes = timesPricesCrossedRange(
-        rangePrices,
-        currRange.min,
-        currRange.max
-      );
-      if (crossedTimes > 3) {
-        currRange.stillStrong = false;
-        continue;
-      }
-
-      let min, max;
-      if (lastRangePoint.value < lastVPoint.value) {
-        min = lastRangePoint.value;
-        max = lastVPoint.value;
-      } else {
-        min = lastVPoint.value;
-        max = lastRangePoint.value;
-      }
-
-      if (min < currRange.min) currRange.min = min;
-      if (max > currRange.max) currRange.max = max;
-
-      currRange.end = lastVPoint;
-      currRange.points.push(lastVPoint);
-
-      pointAddedInARange = true;
-    }
-    for (let i = 0; i < this.ranges; ++i) {
-      const range = this.ranges[i];
-      if (!range.end) {
-        const tempEnd = range.points[range.points.length - 1];
-        range.end = tempEnd;
-
-        const crossedTillEnd = timesPricesCrossedRange(
-          this.prices.slice(tempEnd.index),
-          range.min,
-          range.max
-        );
-
-        if (crossedTillEnd > 3) range.stillStrong = false;
-      }
-    }
-    if (!pointAddedInARange) {
-      this.ranges.push({
-        min: lastVPoint.value,
-        max: lastVPoint.value,
-        start: lastVPoint,
-        end: lastVPoint,
-        points: [lastVPoint],
-        stillStrong: true,
-      });
-    }
-
-    return { vPoints: this.vPoints, ranges: getFormattedRanges() };
-  }
-}
 
 export const nearlyEquateNums = (a, b, dx = 1) => Math.abs(a - b) <= dx;
 
@@ -673,7 +516,6 @@ const getTrendLinesFromVPoints = ({ allPrices, allTimes, vpOffset = 7 }) => {
       !self.some((op) => op.id !== item.id && op.id.includes(item.id))
   );
 };
-
 const getMacdSignal = (macd) => {
   if (
     !macd?.length ||
