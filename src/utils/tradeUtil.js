@@ -6,7 +6,6 @@ import {
   CCI as technicalIndicatorCCI,
   Stochastic as technicalIndicatorStochastic,
   PSAR as technicalIndicatorPSAR,
-  SuperTrend as technicalIndicatorSuperTrend,
   ADX as technicalIndicatorAdx,
 } from "@debut/indicators";
 import { IndicatorsNormalized } from "@ixjb94/indicators/dist";
@@ -28,13 +27,31 @@ const signalWeight = {
   [signalEnum.hold]: 0,
   [signalEnum.buy]: 1,
 };
+export const indicatorEnum = {
+  bollingerBand: "bollinger",
+  sr: "sr",
+  tl: "tl",
+  engulf: "enfulf",
+  sma: "sma",
+  br: "br",
+  macd: "macd",
+  rsi: "rsi",
+  cci: "cci",
+  trend: "trend",
+  stochastic: "stochastic",
+  psar: "psar",
+  obv: "obv",
+  vwap: "vwap",
+  williamR: "willR",
+  mfi: "mfi",
+};
 export const defaultTradePreset = {
   decisionMakingPoints: 3,
   additionalIndicators: {
     sr: true,
     tl: true,
     engulf: true,
-    bollinger: true,
+    bollinger: false,
     sma: true,
     willR: false,
     mfi: false,
@@ -51,7 +68,7 @@ export const defaultTradePreset = {
   vPointOffset: 8,
   trendLineVPointOffset: 7,
   adxPeriod: 14,
-  rsiLow: 40,
+  rsiLow: 30,
   rsiHigh: 70,
   smaLowPeriod: 18,
   smaHighPeriod: 150,
@@ -59,8 +76,8 @@ export const defaultTradePreset = {
   macdFastPeriod: 14,
   macdSlowPeriod: 24,
   macdSignalPeriod: 8,
-  bollingerBandPeriod: 23,
-  bollingerBandStdDev: 4,
+  bollingerBandPeriod: 20,
+  bollingerBandStdDev: 2,
   cciPeriod: 20,
   stochasticPeriod: 14,
   stochasticMA: 3,
@@ -72,7 +89,6 @@ export const defaultTradePreset = {
   psarStart: 0.02,
   psarAcceleration: 0.02,
   psarMaxValue: 0.2,
-  superTrendMultiplier: 3,
   mfiPeriod: 14,
   mfiLow: 23,
   mfiHigh: 83,
@@ -86,20 +102,18 @@ export const defaultTradePreset = {
   trendCheckingLastFewCandles: 8,
 };
 export const indicatorsWeightEnum = {
-  bollingerBand: 3,
   sr: 2,
   tl: 2,
   engulf: 2,
   sr15min: 2,
-  movingAvg: 1.5,
   br: 2,
   macd: 1.5,
   rsi: 1,
   cci: 1,
   trend: 1,
+  bollingerBand: 1,
   stochastic: 1,
-  psar: 0.5,
-  superTrend: 1,
+  psar: 1,
   obv: 1,
   vwap: 1,
   williamR: 1,
@@ -606,7 +620,7 @@ export const takeTrades = async (
     useSRsToNeglectTrades = true,
     vPointOffset = 8,
     trendLineVPointOffset = 7,
-    rsiLow = 40,
+    rsiLow = 30,
     rsiHigh = 70,
     smaLowPeriod = 18,
     adxPeriod = 14,
@@ -615,8 +629,8 @@ export const takeTrades = async (
     macdFastPeriod = 14,
     macdSlowPeriod = 24,
     macdSignalPeriod = 8,
-    bollingerBandPeriod = 23,
-    bollingerBandStdDev = 4,
+    bollingerBandPeriod = 20,
+    bollingerBandStdDev = 2,
     cciPeriod = 20,
     stochasticPeriod = 14,
     stochasticMA = 3,
@@ -628,7 +642,6 @@ export const takeTrades = async (
     psarStart = 0.02,
     psarAcceleration = 0.02,
     psarMaxValue = 0.2,
-    superTrendMultiplier = 3,
     mfiPeriod = 14,
     mfiLow = 23,
     mfiHigh = 83,
@@ -669,11 +682,6 @@ export const takeTrades = async (
     psarAcceleration,
     psarMaxValue
   );
-  const indicatorSuperTrend = new technicalIndicatorSuperTrend(
-    smaLowPeriod,
-    superTrendMultiplier,
-    "SMA"
-  );
 
   const indicators = {
     lastCalculatedIndex: 0,
@@ -685,7 +693,6 @@ export const takeTrades = async (
     bollingerBand: [],
     stochastic: [],
     psar: [],
-    superTrend: [],
     obv: [],
     vwap: [],
     williamR: [],
@@ -1155,6 +1162,36 @@ export const takeTrades = async (
     return signal;
   };
 
+  const getPsarSignal = (index) => {
+    if (index < 2) return signalEnum.hold;
+
+    const price = priceData.c[index];
+    const prevPrice = priceData.c[index - 1];
+    const psar = indicators.psar[index];
+    const prevPsar = indicators.psar[index - 1];
+
+    return price >= psar && prevPrice < prevPsar
+      ? signalEnum.buy
+      : price <= psar && prevPrice > prevPsar
+      ? signalEnum.sell
+      : signalEnum.hold;
+  };
+
+  const getVwapSignal = (index) => {
+    if (index < 2) return signalEnum.hold;
+
+    const price = priceData.c[index];
+    const prevPrice = priceData.c[index - 1];
+    const vwap = indicators.vwap[index];
+    const prevVwap = indicators.vwap[index - 1];
+
+    return price >= vwap && prevPrice < prevVwap
+      ? signalEnum.buy
+      : price <= vwap && prevPrice > prevVwap
+      ? signalEnum.sell
+      : signalEnum.hold;
+  };
+
   const updateIndicatorValues = (index) => {
     const high = priceData.h[index];
     const low = priceData.l[index];
@@ -1169,7 +1206,6 @@ export const takeTrades = async (
     const adx = indicatorAdx.nextValue(high, low, price);
     const stochastic = indicatorStochastic.nextValue(high, low, price).k;
     const psar = indicatorPSAR.nextValue(high, low, price);
-    const superTrend = indicatorSuperTrend.nextValue(high, low, price);
     const engulfSignal = getEngulfSignal(index);
 
     // console.log(adx);
@@ -1183,7 +1219,6 @@ export const takeTrades = async (
     indicators.bollingerBand.push(bollingerBand || {});
     indicators.stochastic.push(stochastic);
     indicators.psar.push(psar);
-    indicators.superTrend.push(superTrend);
   };
 
   const calculateIndicatorsBeforeStartingIndex = async () => {
@@ -1362,9 +1397,6 @@ export const takeTrades = async (
     const effectiveI = i - startI;
 
     const price = prices[effectiveI];
-    const time = times[effectiveI];
-    const high = highs[effectiveI];
-    const low = lows[effectiveI];
 
     updateIndicatorValues(i);
     analyzeAllTradesForCompletion(i);
@@ -1488,8 +1520,6 @@ export const takeTrades = async (
     const CCI = indicators.cci;
     const RSI = indicators.rsi;
     const MACD = indicators.macd;
-    const PSAR = indicators.psar;
-    const ST = indicators.superTrend;
     const BB = indicators.bollingerBand;
     const stochastic = indicators.stochastic;
 
@@ -1503,10 +1533,7 @@ export const takeTrades = async (
     const rsi = RSI[i];
     const cci = CCI[i];
     const mfi = indicators.mfi[i];
-    const vwap = indicators.vwap[i];
     const willR = indicators.williamR[i];
-    const psar = PSAR[i];
-    const superTrend = ST[i];
 
     const targetProfit = (targetProfitPercent / 100) * price;
     const stopLoss = (stopLossPercent / 100) * price;
@@ -1550,7 +1577,7 @@ export const takeTrades = async (
         : mfi > mfiHigh
         ? signalEnum.sell
         : signalEnum.hold;
-    const vwapSignal = price > vwap ? signalEnum.buy : signalEnum.sell;
+    const vwapSignal = getVwapSignal(i);
     const cciSignal =
       cci > 100
         ? signalEnum.buy
@@ -1574,12 +1601,7 @@ export const takeTrades = async (
         : price <= BB[i]?.lower
         ? signalEnum.buy
         : signalEnum.hold;
-    const psarSignal =
-      price >= psar && superTrend?.direction == 1
-        ? signalEnum.buy
-        : price <= psar && superTrend?.direction == -1
-        ? signalEnum.sell
-        : signalEnum.hold;
+    const psarSignal = getPsarSignal(i);
 
     let brSignal, tlSignal;
 
@@ -1592,16 +1614,21 @@ export const takeTrades = async (
     // const lastFewCandleDiff = prices[i] - prices[i - lastFewCandleOffset];
     // const lastFewCandlePercent = (lastFewCandleDiff / price) * 100;
 
-    // const breakOutDownSignal =
-    //   Math.abs(lastMoreCandleDiff) >=
-    //     Math.abs(lastFewCandleDiff) * lastCandlesMultiplier &&
-    //   lastFewCandlePercent > 0.15
-    //     ? lastMoreCandleDiff > 0 && lastFewCandleDiff < 0
-    //       ? signalEnum.buy
-    //       : lastMoreCandleDiff < 0 && lastFewCandleDiff > 0
-    //       ? signalEnum.sell
-    //       : signalEnum.hold
-    //     : signalEnum.hold;
+    const getNetSignalConsideringPrevSignals = (indicatorName, currSignal) => {
+      let finalSignal = currSignal;
+
+      if (finalSignal == signalEnum.hold) {
+        const signalMinus1 = indicators.allSignals[i - 1][indicatorName];
+        const signalMinus2 = indicators.allSignals[i - 2][indicatorName];
+
+        if (signalMinus1 && signalMinus1 !== signalEnum.hold)
+          finalSignal = signalMinus1;
+        else if (signalMinus2 && signalMinus2 !== signalEnum.hold)
+          finalSignal = signalMinus2;
+      }
+
+      return finalSignal;
+    };
 
     const initialSignalWeight = 0;
 
@@ -1609,15 +1636,10 @@ export const takeTrades = async (
 
     const furtherIndicatorSignals = [];
     if (additionalIndicators.sr) {
-      let finalSrSignal = srSignal;
-      if (finalSrSignal == signalEnum.hold) {
-        const srMinus1 = indicators.allSignals[i - 1].srSignal;
-        const srMinus2 = indicators.allSignals[i - 2].srSignal;
-
-        if (srMinus1 && srMinus1 !== signalEnum.hold) finalSrSignal = srMinus1;
-        else if (srMinus2 && srMinus2 !== signalEnum.hold)
-          finalSrSignal = srMinus2;
-      }
+      let finalSrSignal = getNetSignalConsideringPrevSignals(
+        indicatorEnum.sr,
+        srSignal
+      );
 
       furtherIndicatorSignals.push(
         signalWeight[finalSrSignal] * indicatorsWeightEnum.sr
@@ -1627,15 +1649,10 @@ export const takeTrades = async (
     }
     if (additionalIndicators.tl) {
       tlSignal = getTLBreakOutDownSignal(i).signal;
-      let finalTlSignal = tlSignal;
-      if (finalTlSignal == signalEnum.hold) {
-        const tlMinus1 = indicators.allSignals[i - 1].tlSignal;
-        const tlMinus2 = indicators.allSignals[i - 2].tlSignal;
-
-        if (tlMinus1 && tlMinus1 !== signalEnum.hold) finalTlSignal = tlMinus1;
-        else if (tlMinus2 && tlMinus2 !== signalEnum.hold)
-          finalTlSignal = tlMinus2;
-      }
+      let finalTlSignal = getNetSignalConsideringPrevSignals(
+        indicatorEnum.tl,
+        tlSignal
+      );
 
       furtherIndicatorSignals.push(
         signalWeight[finalTlSignal] * indicatorsWeightEnum.tl
@@ -1650,16 +1667,10 @@ export const takeTrades = async (
       analyticDetails.allowedIndicatorSignals.rsi = rsiSignal;
     }
     if (additionalIndicators.engulf) {
-      let finalEngulfSignal = engulfSignal;
-      if (finalEngulfSignal == signalEnum.hold) {
-        const engulfMinus1 = indicators.allSignals[i - 1].engulfSignal;
-        const engulfMinus2 = indicators.allSignals[i - 2].engulfSignal;
-
-        if (engulfMinus1 && engulfMinus1 !== signalEnum.hold)
-          finalEngulfSignal = engulfMinus1;
-        else if (engulfMinus2 && engulfMinus2 !== signalEnum.hold)
-          finalEngulfSignal = engulfMinus2;
-      }
+      let finalEngulfSignal = getNetSignalConsideringPrevSignals(
+        indicatorEnum.engulf,
+        engulfSignal
+      );
 
       furtherIndicatorSignals.push(
         signalWeight[finalEngulfSignal] * indicatorsWeightEnum.engulf
@@ -1668,16 +1679,10 @@ export const takeTrades = async (
       analyticDetails.allowedIndicatorSignals.engulf = finalEngulfSignal;
     }
     if (additionalIndicators.macd) {
-      let finalMacdSignal = macdSignal;
-      if (finalMacdSignal == signalEnum.hold) {
-        const macdMinus1 = indicators.allSignals[i - 1].macdSignal;
-        const macdMinus2 = indicators.allSignals[i - 2].macdSignal;
-
-        if (macdMinus1 && macdMinus1 !== signalEnum.hold)
-          finalMacdSignal = macdMinus1;
-        else if (macdMinus2 && macdMinus2 !== signalEnum.hold)
-          finalMacdSignal = macdMinus2;
-      }
+      let finalMacdSignal = getNetSignalConsideringPrevSignals(
+        indicatorEnum.macd,
+        macdSignal
+      );
 
       furtherIndicatorSignals.push(
         signalWeight[finalMacdSignal] * indicatorsWeightEnum.macd
@@ -1700,15 +1705,10 @@ export const takeTrades = async (
     if (additionalIndicators.br) {
       brSignal = getBreakOutDownSignal(i).signal;
 
-      let finalBrSignal = brSignal;
-      if (finalBrSignal == signalEnum.hold) {
-        const brMinus1 = indicators.allSignals[i - 1].brSignal;
-        const brMinus2 = indicators.allSignals[i - 2].brSignal;
-
-        if (brMinus1 && brMinus1 !== signalEnum.hold) finalBrSignal = brMinus1;
-        else if (brMinus2 && brMinus2 !== signalEnum.hold)
-          finalBrSignal = brMinus2;
-      }
+      let finalBrSignal = getNetSignalConsideringPrevSignals(
+        indicatorEnum.br,
+        brSignal
+      );
 
       furtherIndicatorSignals.push(
         signalWeight[finalBrSignal] * indicatorsWeightEnum.br
@@ -1734,16 +1734,26 @@ export const takeTrades = async (
       analyticDetails.allowedIndicatorSignals.stochastic = stochasticSignal;
     }
     if (additionalIndicators.vwap) {
-      furtherIndicatorSignals.push(
-        signalWeight[vwapSignal] * indicatorsWeightEnum.vwap
+      let finalSignal = getNetSignalConsideringPrevSignals(
+        indicatorEnum.vwap,
+        vwapSignal
       );
-      analyticDetails.allowedIndicatorSignals.vwap = vwapSignal;
+
+      furtherIndicatorSignals.push(
+        signalWeight[finalSignal] * indicatorsWeightEnum.vwap
+      );
+      analyticDetails.allowedIndicatorSignals.vwap = finalSignal;
     }
     if (additionalIndicators.psar) {
-      furtherIndicatorSignals.push(
-        signalWeight[psarSignal] * indicatorsWeightEnum.psar
+      let finalSignal = getNetSignalConsideringPrevSignals(
+        indicatorEnum.psar,
+        psarSignal
       );
-      analyticDetails.allowedIndicatorSignals.psar = psarSignal;
+
+      furtherIndicatorSignals.push(
+        signalWeight[finalSignal] * indicatorsWeightEnum.psar
+      );
+      analyticDetails.allowedIndicatorSignals.psar = finalSignal;
     }
     // if (additionalIndicators.trend) {
     //   furtherIndicatorSignals.push(
@@ -1759,20 +1769,20 @@ export const takeTrades = async (
     }
 
     indicators.allSignals.push({
-      srSignal,
-      macdSignal,
-      rsiSignal,
-      tlSignal,
-      brSignal,
-      engulfSignal,
+      [indicatorEnum.sr]: srSignal,
+      [indicatorEnum.macd]: macdSignal,
+      [indicatorEnum.rsi]: rsiSignal,
+      [indicatorEnum.tl]: tlSignal,
+      [indicatorEnum.br]: brSignal,
+      [indicatorEnum.engulf]: engulfSignal,
       // tlFull: getTLBreakOutDownSignal(i),
       // brFull: getBreakOutDownSignal(i),
-      cciSignal,
-      mfiSignal,
-      smaSignal,
-      psarSignal,
-      vwapSignal,
-      willRSignal,
+      [indicatorEnum.cci]: cciSignal,
+      [indicatorEnum.mfi]: mfiSignal,
+      [indicatorEnum.sma]: smaSignal,
+      [indicatorEnum.psar]: psarSignal,
+      [indicatorEnum.vwap]: vwapSignal,
+      [indicatorEnum.williamR]: willRSignal,
     });
 
     const additionalIndicatorsWeight =
@@ -1858,8 +1868,6 @@ export const takeTrades = async (
     //   isSellSignal = !isSellSignal;
     // }
 
-    analyticDetails.totalPoints =
-      initialSignalWeight + additionalIndicatorsWeight;
     analyticDetails.netSignal = isBuySignal
       ? signalEnum.buy
       : isSellSignal

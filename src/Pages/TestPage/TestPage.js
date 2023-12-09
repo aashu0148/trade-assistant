@@ -167,10 +167,12 @@ function TestPage() {
       sr: false,
       br: false,
       tl: false,
+      bollinger: false,
       engulf: false,
     };
     const otherIndicators = {
       rsi: false,
+      bollinger: false,
       mfi: false,
       stochastic: false,
       willR: false,
