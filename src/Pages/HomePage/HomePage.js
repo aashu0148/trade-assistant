@@ -67,8 +67,9 @@ Interaction.modes.interpolate = Interpolate;
 // console.log(rsi(tataMotorsStockPrices.c));
 // console.log(macd(tataMotorsStockPrices.c));
 
-let timer;
-
+let timer,
+  tradesTaken = [],
+  allSignals = [];
 function HomePage() {
   const [tooltipDetails, setTooltipDetails] = useState({
     style: {},
@@ -78,7 +79,6 @@ function HomePage() {
   });
   const [loadingPage, setLoadingPage] = useState(true);
   const [chartDisplayIndices, setChartDisplayIndices] = useState([0, 200]);
-  const [tradesTaken, setTradesTaken] = useState([]);
 
   const [selectedStock, setSelectedStock] = useState("");
   const [stockData, setStockData] = useState({});
@@ -416,9 +416,14 @@ function HomePage() {
 
         const index = timeArr.findIndex((item) => item == dateStr);
 
+        const trade = tradesTaken.find((item) => item.startIndex == index);
+        const signals = allSignals[index];
+
         setTooltipDetails({
           style,
           index,
+          signals,
+          trade,
           close: price,
           ...data,
           date: `${getDateFormatted(
@@ -453,11 +458,13 @@ function HomePage() {
         },
         useSRsToNeglectTrades: false,
         vPointOffset: 7,
-        trendLineVPointOffset: 7,
+        trendLineVPointOffset: 9,
         decisionMakingPoints: 3,
       },
       false
     );
+    tradesTaken = [...trades];
+    allSignals = [...indicators.allSignals];
 
     // const vPoints = indicators.vPs;
     // vPoints.forEach((v, i) => {
@@ -653,8 +660,6 @@ function HomePage() {
   };
 
   const onIndicesUpdate = () => {
-    setTradesTaken([]);
-
     // renderChartJsChart();
     renderChart();
   };
@@ -739,7 +744,16 @@ function HomePage() {
           ))}
         </div>
 
-        <div id="chart" />
+        <div
+          id="chart"
+          onClick={() =>
+            console.log({
+              index: tooltipDetails.index,
+              Trade: tooltipDetails?.trade,
+              Signals: tooltipDetails?.signals,
+            })
+          }
+        />
       </div>
     </div>
   );
