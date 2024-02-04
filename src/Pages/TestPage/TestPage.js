@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import ReactJSON from "react-json-view";
+// import ReactJSON from "react-json-view";
 import { Copy } from "react-feather";
 import { takeTrades, indicatorEnum } from "@aashu0148/yota-algo";
 
@@ -124,7 +124,7 @@ function TestPage() {
     const unfinishedPercent = (unfinishedTrades / trades.length) * 100;
 
     const isGoodTrade =
-      profitPercent > 60 && total > 45 && unfinishedPercent < 30;
+      profitPercent > 60 && total > 45 && unfinishedPercent < 23;
 
     if (isGoodTrade) {
       goodTradeMetrics.push({
@@ -332,38 +332,48 @@ function TestPage() {
     ]
   ) => {
     return (
-      <table className={`custom-table`}>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Profit percent</th>
-            <th>Total</th>
-            <th>Indicators</th>
-            <th style={{ opacity: "0", cursor: "default" }}>action</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {data.map((item) => (
-            <tr key={item.profitPercent + item.total + item.symbol}>
-              <td style={{ fontWeight: "bold" }}>{item.symbol}</td>
-              <td style={{ fontWeight: "bold" }}>
-                {item.profitPercent.toFixed(2)}%
-              </td>
-              <td>{item.total}</td>
-              <td>{item.indicators}</td>
-              <td style={{ textAlign: "center" }}>
-                <Button
-                  onClick={() => copyToClipboard(JSON.stringify(item.preset))}
-                  outlineButton
-                >
-                  <Copy /> Copy
-                </Button>
-              </td>
+      <div
+        style={{
+          maxHeight: "200px",
+          overflowY: "auto",
+          width: "1200px",
+          maxWidth: "100%",
+          margin: "0 auto",
+        }}
+      >
+        <table className={`custom-table`} style={{ width: "100%" }}>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Profit percent</th>
+              <th>Total</th>
+              <th>Indicators</th>
+              <th style={{ opacity: "0", cursor: "default" }}>action</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+
+          <tbody>
+            {data.map((item) => (
+              <tr key={item.profitPercent + item.total + item.symbol}>
+                <td style={{ fontWeight: "bold" }}>{item.symbol}</td>
+                <td style={{ fontWeight: "bold" }}>
+                  {item.profitPercent.toFixed(2)}%
+                </td>
+                <td>{item.total}</td>
+                <td>{item.indicators}</td>
+                <td style={{ textAlign: "center" }}>
+                  <Button
+                    onClick={() => copyToClipboard(JSON.stringify(item.preset))}
+                    outlineButton
+                  >
+                    <Copy /> Copy
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     );
   };
 
