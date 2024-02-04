@@ -4,6 +4,10 @@
 /node_modules
 /.pnp
 .pnp.js
+.npmrc
+
+/dist
+/dist/*
 
 # testing
 /coverage

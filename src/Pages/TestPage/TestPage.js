@@ -1,11 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import ReactJSON from "react-json-view";
+import { Copy } from "react-feather";
+import { takeTrades, indicatorEnum } from "@aashu0148/yota-algo";
 
 import Spinner from "Components/Spinner/Spinner";
 import Button from "Components/Button/Button";
 
-import { takeTrades } from "utils/tradeUtil";
-import { formatSecondsToHrMinSec } from "utils/util";
+import {
+  copyToClipboard,
+  formatSecondsToHrMinSec,
+  getTradeLabels,
+} from "utils/util";
 
 function shuffleArray(array) {
   for (var i = array.length - 1; i > 0; i--) {
@@ -35,7 +40,7 @@ function TestPage() {
 
   const fetchStockData = async () => {
     const res = await fetch(
-      `https://trade-p129.onrender.com/trade/data?from=1692238818805&to=1700878818805`,
+      `https://trade-p129.onrender.com/trade/data?from=1689186600000&to=1702190158456`,
       {
         headers: {
           Authorization:
@@ -62,16 +67,18 @@ function TestPage() {
     targetProfitPercent = 1.4,
     stopLossPercent = 0.7,
   }) => {
-    const indicators = indicatorCombination.split("_").filter((item) => item);
+    const indicators = indicatorCombination.split("#").filter((item) => item);
 
     const indicatorsObj = {};
     indicators.forEach((item) => (indicatorsObj[item] = true));
+
+    console.log(`${symbol} | ${indicatorCombination}`);
 
     const {
       trades,
       preset,
       indicators: drawnIndicators,
-    } = await takeTrades(priceData, {
+    } = takeTrades(priceData, {
       additionalIndicators: indicatorsObj,
       vPointOffset: vpOffset,
       trendLineVPointOffset: tlVpOffset,
@@ -90,16 +97,34 @@ function TestPage() {
     }
 
     const total = trades.length;
-    const profits = trades.filter((item) => item.status == "profit").length;
-    const lost = trades.filter((item) => item.status == "loss").length;
-    const unfinished = trades.filter(
-      (item) => item.status == "unfinished"
-    ).length;
-    const unfinishedPercent = (unfinished / total) * 100;
 
-    const profitPercent = (profits / (profits + lost)) * 100;
+    const tradeLabels = getTradeLabels(trades);
+
+    const profitTrades = tradeLabels.reduce(
+      (acc, curr) => (curr == "profit" ? acc + 1 : acc),
+      0
+    );
+    const lossTrades = tradeLabels.reduce(
+      (acc, curr) => (curr == "loss" ? acc + 1 : acc),
+      0
+    );
+    const firstTargetTrades = tradeLabels.reduce(
+      (acc, curr) => (curr == "half-profit" ? acc + 1 : acc),
+      0
+    );
+    const unfinishedTrades = tradeLabels.reduce(
+      (acc, curr) => (curr == "unfinished" ? acc + 1 : acc),
+      0
+    );
+    const profitPercent =
+      ((profitTrades + firstTargetTrades) /
+        (profitTrades + firstTargetTrades + lossTrades)) *
+      100;
+
+    const unfinishedPercent = (unfinishedTrades / trades.length) * 100;
+
     const isGoodTrade =
-      profitPercent > 50 && total > 40 && unfinishedPercent < 45;
+      profitPercent > 60 && total > 45 && unfinishedPercent < 30;
 
     if (isGoodTrade) {
       goodTradeMetrics.push({
@@ -107,9 +132,9 @@ function TestPage() {
         analytics: {
           profitPercent,
           total,
-          profitable: profits,
-          lossMaking: lost,
-          unfinished,
+          profitable: profitTrades,
+          lossMaking: lossTrades,
+          unfinished: unfinishedTrades,
         },
         preset,
       });
@@ -119,14 +144,7 @@ function TestPage() {
           1
         )} | UfP-${unfinishedPercent.toFixed(1)} | T-${total}}`
       );
-    } else
-      console.log(
-        `${symbol} | ${indicatorCombination} | T:${total} | PP:${parseInt(
-          profitPercent
-        )} | UP:${parseInt(
-          unfinishedPercent
-        )} | trP:${targetProfitPercent} | slP:${stopLossPercent}`
-      );
+    }
 
     return {
       trades,
@@ -156,27 +174,13 @@ function TestPage() {
       return result;
     }
 
-    const indicators = {
-      rsi: false,
-      mfi: false,
-      stochastic: false,
-      willR: false,
-      macd: false,
-      sma: false,
-      cci: false,
-      sr: false,
-      br: false,
-      tl: false,
-      bollinger: false,
-      engulf: false,
-    };
     const otherIndicators = {
-      rsi: false,
-      bollinger: false,
+      // rsi: false,
+      // bollinger: false,
       mfi: false,
-      stochastic: false,
-      willR: false,
-      cci: false,
+      // stochastic: false,
+      // willR: false,
+      // cci: false,
       macd: false,
       sma: false,
     };
@@ -184,17 +188,22 @@ function TestPage() {
       tl: false,
       sr: false,
       br: false,
-      engulf: false,
+      // engulf: false,
+      [indicatorEnum.momentumGroup]: false,
+      [indicatorEnum.allStar]: false,
+      [indicatorEnum.trapping]: false,
     };
 
     const indicatorCombinations = getAllCombinations(
-      Object.keys(indicators).map((item) => item + "_")
+      [...Object.keys(otherIndicators), ...Object.keys(impIndicators)].map(
+        (item) => item + "#"
+      )
     ).filter((item) => {
       if (item.includes("rsi") && item.includes("cci")) return false;
       if (item.includes("rsi") && item.includes("willR")) return false;
       if (!item.includes("tl")) return false;
 
-      const inds = item.split("_").filter((s) => s);
+      const inds = item.split("#").filter((s) => s);
 
       let otherIndCount = 0,
         impIndCount = 0;
@@ -234,50 +243,39 @@ function TestPage() {
       },
     ];
 
-    console.log("indicatorCombinations:", indicatorCombinations.length);
+    console.log(
+      "indicatorCombinations:",
+      indicatorCombinations.length,
+      indicatorCombinations
+    );
     let goodTradeMetrics = [],
-      skipTlVpOffset = false,
       skipVpOffset = false;
     for (let i = 0; i < indicatorCombinations.length; ++i) {
-      for (let vpOffset = 6; vpOffset < 13; vpOffset += 3) {
+      for (let vpOffset = 7; vpOffset < 11; vpOffset += 3) {
         if (skipVpOffset) {
           console.log("SKIPPING vpOffset");
           vpOffset = 14;
           skipVpOffset = false;
-          skipTlVpOffset = false;
           continue;
         }
 
-        for (let tlVpOffset = 7; tlVpOffset < 12; tlVpOffset += 2) {
-          if (skipTlVpOffset || skipVpOffset) {
-            console.log("SKIPPING tlVpOffset");
-            tlVpOffset = 12;
-            skipTlVpOffset = false;
-            continue;
-          }
+        const price = priceData["5"].c[0];
+        const ratio = priceWinRatios.find(
+          (item) => item.min < price && item.max >= price
+        );
 
-          const price = priceData["5"].c[0];
-          const ratio = priceWinRatios.find(
-            (item) => item.min < price && item.max >= price
-          );
+        const { trades, isGoodTrade, profitPercent } = await testTradesLogic({
+          symbol,
+          goodTradeMetrics,
+          priceData,
+          vpOffset,
+          indicatorCombination: indicatorCombinations[i],
+          targetProfitPercent: ratio.tp,
+          stopLossPercent: ratio.sp,
+        });
 
-          const { trades, isGoodTrade, profitPercent, unfinishedPercent } =
-            await testTradesLogic({
-              symbol,
-              goodTradeMetrics,
-              priceData,
-              tlVpOffset,
-              vpOffset,
-              indicatorCombination: indicatorCombinations[i],
-              targetProfitPercent: ratio.tp,
-              stopLossPercent: ratio.sp,
-            });
-
-          if (profitPercent < 20) {
-            skipVpOffset = true;
-          } else if (isGoodTrade || !trades.length) {
-            skipTlVpOffset = true;
-          }
+        if (profitPercent < 20) {
+          skipVpOffset = true;
         }
       }
     }
@@ -289,7 +287,7 @@ function TestPage() {
     console.log(`🔵 Trades for: ${symbol}`, structuredClone(goodTradeMetrics));
     localStorage.setItem(
       `${symbol}_trades`,
-      JSON.stringify(goodTradeMetrics.slice(0, 30))
+      JSON.stringify(goodTradeMetrics.slice(0, 35))
     );
   };
 
@@ -328,16 +326,57 @@ function TestPage() {
     getAllStoredResults();
   }, []);
 
-  const jsonDiv = useMemo(
-    () => (
-      <ReactJSON
-        style={{ height: "600px", overflowY: "auto" }}
-        src={localStorageObj}
-        theme={"monokai"}
-      />
-    ),
-    [localStorageObj]
-  );
+  const getTableFromAnalytics = (
+    data = [
+      { symbol: "", profitPercent: "", total: "", preset: {}, indicators: "" },
+    ]
+  ) => {
+    return (
+      <table className={`custom-table`}>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Profit percent</th>
+            <th>Total</th>
+            <th>Indicators</th>
+            <th style={{ opacity: "0", cursor: "default" }}>action</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {data.map((item) => (
+            <tr key={item.profitPercent + item.total + item.symbol}>
+              <td style={{ fontWeight: "bold" }}>{item.symbol}</td>
+              <td style={{ fontWeight: "bold" }}>
+                {item.profitPercent.toFixed(2)}%
+              </td>
+              <td>{item.total}</td>
+              <td>{item.indicators}</td>
+              <td style={{ textAlign: "center" }}>
+                <Button
+                  onClick={() => copyToClipboard(JSON.stringify(item.preset))}
+                  outlineButton
+                >
+                  <Copy /> Copy
+                </Button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  };
+
+  // const jsonDiv = useMemo(
+  //   () => (
+  //     <ReactJSON
+  //       style={{ height: "600px", overflowY: "auto" }}
+  //       src={localStorageObj}
+  //       theme={"monokai"}
+  //     />
+  //   ),
+  //   [localStorageObj]
+  // );
 
   return loadingPage ? (
     <div className="spinner-container">
@@ -376,15 +415,30 @@ function TestPage() {
       <div className="section">
         <p className="heading">Previously tested data</p>
 
+        {Object.keys(localStorageObj).map((symbol) =>
+          localStorageObj[symbol]?.length
+            ? getTableFromAnalytics(
+                localStorageObj[symbol].map((item) => ({
+                  ...item.analytics,
+                  symbol,
+                  preset: item.preset,
+                  indicators: item.preset?.additionalIndicators
+                    ? Object.keys(item.preset.additionalIndicators).join(", ")
+                    : "",
+                }))
+              )
+            : ""
+        )}
+        {/* 
         {showJSON ? (
           <Button outlineButton onClick={() => setShowJSON(false)}>
             Hide JSON
           </Button>
         ) : (
           <Button onClick={() => setShowJSON(true)}>Show JSON</Button>
-        )}
+        )} */}
 
-        {showJSON ? jsonDiv : ""}
+        {/* {showJSON ? jsonDiv : ""} */}
       </div>
     </div>
   );

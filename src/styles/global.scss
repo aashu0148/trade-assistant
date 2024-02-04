@@ -288,3 +288,64 @@ a {
     color: $white;
   }
 }
+
+.custom-table {
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 16px;
+  font-weight: 500;
+  border-radius: 5px;
+  overflow: hidden;
+
+  thead {
+    background-color: $primary;
+    color: $white;
+    border-top-right-radius: 5px;
+    border-top-left-radius: 5px;
+    overflow: hidden;
+
+    tr {
+      text-align: left;
+
+      th {
+        padding: 10px;
+      }
+    }
+  }
+
+  tr {
+    border-bottom: 1px solid $white-2;
+
+    button {
+      padding: 5px 10px;
+      font-size: 14px;
+      font-weight: 600;
+      margin: 0 auto;
+
+      svg {
+        height: 16px;
+        width: 16px;
+      }
+    }
+  }
+
+  th,
+  td {
+    padding: 6px 4px;
+  }
+
+  td {
+    word-break: break-word;
+    max-width: 400px;
+    overflow: hidden;
+  }
+
+  tbody {
+    tr:nth-child(odd) {
+      background-color: $white-1;
+    }
+    tr:last-of-type {
+      border-bottom: 2px solid $primary;
+    }
+  }
+}

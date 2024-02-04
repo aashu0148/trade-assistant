@@ -1,3 +1,5 @@
+import { toast } from "react-hot-toast";
+
 export const handleNumericInputKeyDown = (event) => {
   let key = event.key;
 
@@ -148,3 +150,39 @@ export function calculateAngle(x, y) {
   const degrees = radians * (180 / Math.PI);
   return degrees;
 }
+
+export const copyToClipboard = async (
+  text,
+  toastOptions = { hideToast: false, toastMessage: "" }
+) => {
+  const { hideToast = false, toastMessage = "" } = toastOptions;
+
+  try {
+    await window.navigator.clipboard.writeText(text);
+
+    if (!hideToast) toast.success(toastMessage || "Text copied to clipboard");
+  } catch (err) {
+    console.error("Failed to copy: ", err);
+  }
+};
+
+export const getTradeLabels = (trades) =>
+  trades.map((item) => {
+    const isBuyTrade = item.type == "buy";
+    let { startPrice: trigger, tradeHigh, tradeLow, target, sl, status } = item;
+    const targetLength = Math.abs(trigger - target);
+    const slLength = Math.abs(trigger - sl);
+    const t1 = isBuyTrade ? trigger + slLength : trigger - slLength;
+    const t1Length = Math.abs(trigger - t1);
+    const t1PercentOfTarget = (t1Length / targetLength) * 100;
+    const t1Succeeded =
+      (isBuyTrade && tradeHigh > t1) || (!isBuyTrade && tradeLow < t1);
+
+    // t1Length should be < 80% of targetLength
+    const useTargetOne = t1PercentOfTarget < 80;
+
+    if (status == "profit") return "profit";
+    else if (useTargetOne && t1Succeeded) return "half-profit";
+    else if (status == "loss") return "loss";
+    else return "unfinished";
+  });
